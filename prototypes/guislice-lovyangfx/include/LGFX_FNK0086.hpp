@@ -54,11 +54,22 @@ constexpr bool kInvert = false;
 #else
 constexpr bool kInvert = false;
 #endif
-#if defined(TFT_RGB_ORDER) && defined(TFT_BGR)
-constexpr bool kRgbOrder = TFT_RGB_ORDER == TFT_BGR;
+// TFT_eSPI ST7789 convention: TFT_RGB=1, TFT_BGR=0.
+// The real Freenove CFG1 uses "#define TFT_RGB_ORDER TFT_BGR" but TFT_BGR
+// itself is not defined in that standalone setup file. In a preprocessor
+// #if expression its value is 0, exactly as TFT_eSPI's ST7789 driver reads it.
+// LovyanGFX's rgb_order=true selects BGR (red/blue exchanged).
+#if defined(TFT_RGB_ORDER)
+constexpr bool kRgbOrder = (TFT_RGB_ORDER != 1);
 #else
 constexpr bool kRgbOrder = false;
 #endif
+
+// The verified TFT_eSPI configuration calls the ST7789 in SPI mode 3.
+// Start LovyanGFX at a conservative <=40 MHz while validating its new driver.
+// This does NOT change the SHA256-verified CFG1 header (80 MHz remains there).
+constexpr unsigned kSafeFirstBootHz =
+    kSpiWriteHz <= 40000000U ? kSpiWriteHz : 40000000U;
 }
 
 #include <LovyanGFX.hpp>
@@ -72,8 +83,8 @@ public:
     LGFX() {
         auto busCfg = bus_.config();
         busCfg.spi_host = SPI2_HOST;
-        busCfg.spi_mode = 0;
-        busCfg.freq_write = FnkVerifiedCfg1::kSpiWriteHz;
+        busCfg.spi_mode = 3; // TFT_eSPI ST7789 uses SPI_MODE3 by default.
+        busCfg.freq_write = FnkVerifiedCfg1::kSafeFirstBootHz;
         busCfg.freq_read = 8000000;
         busCfg.pin_sclk = FnkVerifiedCfg1::kSclk;
         busCfg.pin_mosi = FnkVerifiedCfg1::kMosi;
