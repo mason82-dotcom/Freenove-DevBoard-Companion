@@ -2,6 +2,7 @@
 #include <TFT_eSPI.h>
 #include <Wire.h>
 #include "BoardPins.h"
+#include "TouchTransform.h"
 
 // Phase 0: fixed CFG1 display and FT6336U touch smoke test.
 // Read-only local diagnostics, no Wi-Fi, vehicle, drone or Hermes control.
@@ -36,7 +37,7 @@ void setup() {
     Serial.printf("FT6336U probe: %s\n", touchAvailable ? "FOUND" : "MISSING");
 
     display.init();
-    display.setRotation(0);
+    display.setRotation(1);  // Fixed landscape orientation, ST7789 CFG1 only
     display.fillScreen(TFT_BLACK);
     const int w = display.width();
     const int h = display.height();
@@ -59,7 +60,12 @@ void loop() {
     if (touchAvailable && now - lastTouchMs >= 75) {
         lastTouchMs = now;
         uint16_t x = 0, y = 0;
-        if (readTouch(x, y)) Serial.printf("TOUCH raw x=%u y=%u\n", x, y);
+        if (readTouch(x, y)) {
+            const auto mapped = TouchTransform::rawToLandscape(x, y);
+            Serial.printf("TOUCH raw x=%u y=%u mapped x=%u y=%u\n",
+                          x, y, mapped.x, mapped.y);
+            display.fillCircle(mapped.x, mapped.y, 3, TFT_YELLOW);
+        }
     }
     if (now - lastHeartbeatMs >= 5000) {
         lastHeartbeatMs = now;
