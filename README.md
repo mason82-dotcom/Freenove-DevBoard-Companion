@@ -15,6 +15,14 @@ LVGL-9.6-basierte, **lokale und rein lesende** Companion-Oberfläche für das Fr
 | Touchtransformation | `screenX=min(rawY,319)`, `screenY=239-min(rawX,239)` |
 | Display | ST7789, 320 × 240 Landscape |
 
+## LVGL-Konfiguration: Extended global aktiv
+
+`include/lv_conf.h` definiert **COMPANION_LVGL_PROFILE_EXTENDED=1** als einziges globales LVGL-9-Profil. Das PlatformIO-Buildsystem bindet diese Datei über `-DLV_CONF_INCLUDE_SIMPLE=1 -Iinclude` für **alle LVGL-Bibliotheksdateien und die Anwendung** ein; es gibt keine separate Einstellung pro Companion-Modul.
+
+Aktiv sind: **Label, Button, Chart, Bar, Slider, Image, Flex, Grid**, RGB565-Software-Rendering und das Standard-Theme. Unbenutzte Widgets (beispielsweise Kalender, Keyboard, Textarea, Canvas, Menü und Tabellen) sowie Simple-/Mono-Themes und Observer sind explizit deaktiviert. Damit bleiben die für spätere Status-/Telemetrieoberflächen nötigen LVGL-Bausteine verfügbar, ohne sämtliche Standardwidgets mitzunehmen.
+
+**Validierungsstand:** Die früheren Display-/Touch-Abnahmen beziehen sich auf die vorherige LVGL-9-Konfiguration. Der neue globale Extended-Zuschnitt benötigt einen frischen ESP32-S3-Build und kurzen Anzeige-/Touch-Smoke-Test auf dem FNK0086; noch keine Flash-/RAM-Ersparnis oder Hardwareabnahme der neuen Konfiguration behaupten. Das verifizierte CFG1-Profil wurde nicht verändert.
+
 Die sechs Kacheln **Hermes, Webradio, OBD2, Drohne, System und Kamera** ermöglichen lokale Navigation. Nur das Systemmodul zeigt echte ESP32-Livewerte (Uptime, Heap, PSRAM). Alle anderen Module sind funktionslose Platzhalter. Es werden keine Netzwerkanfragen, Fahrzeugkommandos, Drohnenbefehle oder Kameraaufnahmen ausgeführt.
 
 ## Hardwareabnahme vom 12.10.2026
