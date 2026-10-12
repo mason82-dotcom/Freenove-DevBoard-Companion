@@ -23,6 +23,15 @@ constexpr auto limit1 = rawToLandscape(239, 319);
 static_assert(limit1.x == 319 && limit1.y == 0, "opposite corner");
 constexpr auto outOfBounds = rawToLandscape(500, 900);
 static_assert(outOfBounds.x == 319 && outOfBounds.y == 0, "clamp bounds");
+using TouchTransform::isNear;
+static_assert(isNear(topLeft, {24, 24}), "physical top-left target");
+static_assert(isNear(topRight, {296, 24}), "physical top-right target");
+static_assert(isNear(bottomLeft, {24, 216}), "physical bottom-left target");
+static_assert(isNear(bottomRight, {296, 216}), "physical bottom-right target");
+static_assert(isNear({160, 120}, {160, 120}), "centre target");
+static_assert(isNear({100, 100}, {140, 100}, 40), "inclusive tolerance");
+static_assert(!isNear({100, 100}, {141, 100}, 40), "reject misses");
+static_assert(!isNear({0, 0}, {319, 239}), "reject distant point");
 int main() { return 0; }
 '''
 
