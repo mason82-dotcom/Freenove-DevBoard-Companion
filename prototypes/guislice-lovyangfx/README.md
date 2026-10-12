@@ -1,6 +1,6 @@
 # GUIslice + LovyanGFX (FNK0086 experiment)
 
-**Status: experimental port; synthetic-CFG1 CI build passed previously; build with the real verified CFG1 and on-device validation remain pending.** This is an isolated prototype. It does **not** change the LVGL 9 firmware, default `platformio.ini`, stable touch calibration, the current Raspberry Pi working tree, or any external system.
+**Status: ESP32-S3 Raspberry Pi 5 build with real SHA256-verified CFG1 PASSED on 2026-10-12; on-device GUI, touch and stability validation remain pending.** This is an isolated prototype. It does **not** change the LVGL 9 firmware, default `platformio.ini`, stable touch calibration, the current Raspberry Pi working tree, or any external system.
 
 ## Hardware and libraries
 
@@ -20,6 +20,22 @@ The user's `VerifiedDisplaySetup.h` in the GUIslice test worktree and the previo
 Its effective definitions include `ST7789_DRIVER`, `TFT_MOSI=20`, `TFT_SCLK=21`, `TFT_DC=0` and `SPI_FREQUENCY=80000000`. It intentionally has no `TFT_WIDTH` or `TFT_HEIGHT` macros. Initial prototype builds incorrectly rejected it.
 
 The adapter was corrected to **require** `ST7789_DRIVER`, verify all three GPIOs, and reject conflicting dimensions **only if those optional macros are supplied**. It explicitly configures the already hardware-proven ST7789 physical resolution as 240×320. No edits to the user's CFG1 header and no board-profile fallback are necessary. The compile-only CI fixture likewise omits both dimension macros to protect this exact scenario. CI is only an approximation of the full vendor CFG1 file.
+
+## Real Raspberry Pi 5 compile — PASS (2026-10-12)
+
+The operator built this exact experimental GUI with the real locally validated CFG1 header. Full ESP32-S3 Arduino 3.3.9 compile and link succeeded:
+
+```text
+RAM:   10.9% (used 35816 bytes from 327680 bytes)
+Flash: 14.2% (used 447619 bytes from 3145728 bytes)
+Successfully created ESP32-S3 image.
+Successfully created combined binary image.
+========= [SUCCESS] Took 41.38 seconds =========
+```
+
+The previous LVGL9 Pi build reported 664910 bytes Flash and 103124 bytes static RAM. These are **different functionality baselines**: the GUI and read-only System status can be compared, but neither platform has the actual Hermes, OBD2, drone or camera integrations yet. The GUIslice image is **NOT yet approved on hardware**.
+
+**Pre-flash review:** The original CFG1 sets `SPI_FREQUENCY=80000000` and that value is used by LovyanGFX's new SPI driver. The old working TFT_eSPI firmware does not prove that the new engine and ST7789 will behave identically at 80 MHz. Check the pin and optional backlight/reset/inversion definitions, identify the correct USB serial device, and expect to lower the experimental SPI clock only if needed. No automatic flashing. Confirm whether the GUI is readable (no inverted colors, wrong offsets or flicker), check the `FT6336U probe` log and every tile/back button before marking this test passed. The `firmware.factory.bin` artifact is not intended for manual flashing at 0x0.
 
 ## Raspberry Pi build, without disturbing the working LVGL project
 
