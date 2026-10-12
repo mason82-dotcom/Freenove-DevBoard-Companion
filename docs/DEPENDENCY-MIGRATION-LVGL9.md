@@ -1,6 +1,6 @@
 # Dependency migration: LVGL 9.6.0 (Freenove FNK0086)
 
-**Status:** LVGL 9 migration implemented, **Raspberry Pi 5 PlatformIO build passed** and **all three staged on-device LVGL rendering checks passed** on 2026-10-12. GUI appearance, touch navigation and long-term stability validation are still pending. No firmware was uploaded remotely by GitHub.
+**Status:** LVGL 9 migration implemented, **Raspberry Pi 5 PlatformIO build passed** and **all three staged on-device LVGL rendering checks passed** on 2026-10-12. GUI rendering and touch navigation are now observed working on board; ten-minute stability validation is pending. No firmware was uploaded remotely by GitHub.
 
 ## Real Raspberry Pi 5 build — PASS (2026-10-12)
 
@@ -29,7 +29,11 @@ The operator has flashed the LVGL 9.6.0 build and supplied live UART logs from t
 | 1, LVGL rendering without TFT SPI | `DIAG FLUSH #1..#3` for contiguous 320x20 slices; uptime through 40 seconds, heap=266024, PSRAM=8383572, loop stack HWM=3720 | PASS (about 14 seconds) |
 | 2, LVGL rendering with TFT SPI | `DIAG SPI ENTER pixels=6400`, `DIAG SPI EXIT`; uptime through 52 seconds, heap=266000, PSRAM=8383524, loop stack HWM=3720 | PASS (about 12 seconds) |
 
-The initial LVGL 8.3 `InstructionFetchError` and corrupted backtrace did not recur during these checks. All three stages now execute and the actual SPI flush finishes. **A displayed image/photo, all six touch tiles, back navigation, and the 10-minute soak test are not yet confirmed.** Do not call this a full hardware acceptance or merge the PR to main on these logs alone.
+The initial LVGL 8.3 `InstructionFetchError` and corrupted backtrace did not recur during these checks. All three stages now execute and the actual SPI flush finishes. **A user-supplied photo now confirms all six tiles visibly rendered without obvious corruption, and the user reports touch navigation functions without problems. Per-tile serial logs and the 10-minute soak remain unconfirmed.** Do not call this a full hardware acceptance or merge the PR to main on these logs alone.
+
+## Hardware photo and navigation — 2026-10-12
+
+The user supplied a real FNK0086 photograph showing all six module tiles (Hermes, Webradio, OBD2, Drohne, System, Kamera), readable typography and footer. No obvious rendering artifacts. The photographed board is upright while the GUI uses the intended landscape layout. The user confirms navigation works without problems. No source image was copied into the repository. A ten-minute stability run is still pending.
 
 ## Versions
 
@@ -84,8 +88,8 @@ If the original verified CFG1 header is not available, do not substitute CFG2; s
 
 1. Host Python and constexpr C++ tests green (**passed: 17/17**).
 2. Actual `pio run -e fnk0086` on Pi reports SUCCESS with no linker errors (**passed 2026-10-12**).
-3. Stages 0, 1 and 2 stable and LVGL flush reaches `DIAG SPI EXIT` (**passed in the short staged hardware test**); visually rendering all six tiles **not yet confirmed**.
-4. All six tiles respond to touch and back navigation works.
+3. Stages 0, 1 and 2 stable and LVGL flush reaches `DIAG SPI EXIT` (**passed in the short staged hardware test**); all six tiles now **visually confirmed by user photo**.
+4. Touch navigation works (**confirmed by user**); explicit per-tile serial checks are optional.
 5. Ten-minute serial test with stable heap/PSRAM and no Guru Meditation Error.
 
 No merge to `main` until both the LVGL9 build and real-device validation succeed.
