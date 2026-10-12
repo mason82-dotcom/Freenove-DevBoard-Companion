@@ -71,8 +71,12 @@ gslc_tsElemRef* addText(int16_t page, gslc_tsRect rect,
     auto* ref = gslc_ElemCreateTxt(&gui, GSLC_ID_AUTO, page, rect,
                                    text, maxLen, kFontBody);
     if (ref) {
-        gslc_ElemSetFillEn(&gui, ref, false);
+        // Fill the text element background on redraw so shorter uptime/
+        // memory strings do not leave glyph fragments from older values.
+        gslc_ElemSetFillEn(&gui, ref, true);
         gslc_ElemSetFrameEn(&gui, ref, false);
+        gslc_ElemSetCol(&gui, ref, GSLC_COL_BLACK,
+                        GSLC_COL_BLACK, GSLC_COL_BLACK);
         gslc_ElemSetTxtCol(&gui, ref, GSLC_COL_WHITE);
     }
     return ref;
