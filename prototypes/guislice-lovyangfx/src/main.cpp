@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <SPI.h> // Explicit framework dependency required by GUIslice TFT backend.
 #include <LovyanGFX.hpp> // Direct PlatformIO LDF dependency for the compatibility backend.
 #include <GUIslice.h>
 #include <GUIslice_drv.h>
