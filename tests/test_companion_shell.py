@@ -80,6 +80,16 @@ class CompanionShellTests(unittest.TestCase):
         self.assertNotIn("lv_disp_drv_t", gui)
         self.assertNotIn("lv_indev_drv_t", gui)
 
+    def test_normal_boot_auto_starts_stage_2(self):
+        gui = (ROOT / "src" / "CompanionUi.cpp").read_text(encoding="utf-8")
+        main = (ROOT / "src" / "main.cpp").read_text(encoding="utf-8")
+        header = (ROOT / "include" / "CompanionUi.h").read_text(encoding="utf-8")
+        self.assertIn("#define COMPANION_DIAGNOSTIC_BOOT 0", gui)
+        self.assertIn("diagStage = COMPANION_DIAGNOSTIC_BOOT ? 0 : 2;", gui)
+        self.assertIn('UI BOOT: stage %u', main)
+        self.assertIn("COMPANION_DIAGNOSTIC_BOOT=1", header)
+        self.assertNotIn("DIAG BOOT: stage 0, LVGL paused", main)
+
     def test_diagnostic_stages_pause_lvgl_and_bypass_spi(self):
         main = (ROOT / "src" / "main.cpp").read_text(encoding="utf-8")
         gui = (ROOT / "src" / "CompanionUi.cpp").read_text(encoding="utf-8")
