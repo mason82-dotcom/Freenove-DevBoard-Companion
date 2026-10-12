@@ -6,11 +6,18 @@
 // LovyanGFX header tree. This prevents conflicts with any library internals.
 #include <VerifiedDisplaySetup.h>
 
-#if !defined(ST7789_DRIVER) || !defined(TFT_WIDTH) || !defined(TFT_HEIGHT)
-#error "Only the verified FNK0086 ST7789 CFG1 setup can be used."
+#ifndef ST7789_DRIVER
+#error "The verified FNK0086 CFG1 must select ST7789_DRIVER."
 #endif
-#if TFT_WIDTH != 240 || TFT_HEIGHT != 320
-#error "This experiment requires a verified 240x320 portrait ST7789 panel."
+// The user's SHA256-verified Freenove CFG1 header does not define
+// TFT_WIDTH or TFT_HEIGHT. The real panel resolution, 240x320 portrait,
+// was verified on hardware. Validate dimensions IF explicitly provided,
+// but do not require invented definitions absent from the actual CFG1.
+#if defined(TFT_WIDTH) && TFT_WIDTH != 240
+#error "FNK0086 CFG1 TFT_WIDTH must be 240 when specified."
+#endif
+#if defined(TFT_HEIGHT) && TFT_HEIGHT != 320
+#error "FNK0086 CFG1 TFT_HEIGHT must be 320 when specified."
 #endif
 #if !defined(TFT_MOSI) || !defined(TFT_SCLK) || !defined(TFT_DC)
 #error "CFG1 header must declare the verified SPI MOSI, SCLK and DC pins."
