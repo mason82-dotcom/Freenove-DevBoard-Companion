@@ -69,8 +69,8 @@ class GUIsliceLovyanPrototypeTests(unittest.TestCase):
         # The actual vendor CFG1 has TFT_RGB_ORDER=TFT_BGR and
         # TFT_INVERSION_OFF; TFT_BGR is not a standalone numeric macro.
         self.assertIn("busCfg.spi_mode = 3;", self.device)
-        self.assertIn("constexpr bool kRgbOrder = (TFT_RGB_ORDER != 1);",
-                      self.device)
+        self.assertIn("#if TFT_RGB_ORDER == 1", self.device)
+        self.assertIn("constexpr bool kRgbOrder = true;  // BGR", self.device)
         self.assertIn("panelCfg.rgb_order = FnkVerifiedCfg1::kRgbOrder;",
                       self.device)
         self.assertIn("panelCfg.invert = FnkVerifiedCfg1::kInvert;",
