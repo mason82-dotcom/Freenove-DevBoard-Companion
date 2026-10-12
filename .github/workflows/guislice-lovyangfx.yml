@@ -30,15 +30,15 @@ jobs:
         run: |
           cat > include/VerifiedDisplaySetup.h <<'EOF'
           // BUILD FIXTURE ONLY: approximate known CFG1 pins, NOT a hardware-verified header.
+          // The real verified Freenove CFG1 does not define TFT_WIDTH/HEIGHT.
+          // Keep them absent here to detect regressions in the adapter's guards.
           #define ST7789_DRIVER
-          #define TFT_WIDTH 240
-          #define TFT_HEIGHT 320
           #define TFT_MOSI 20
           #define TFT_SCLK 21
           #define TFT_DC 0
           #define TFT_CS -1
           #define TFT_RST -1
-          #define SPI_FREQUENCY 27000000
+          #define SPI_FREQUENCY 80000000
           EOF
       - name: Compile GUIslice with LovyanGFX on ESP32-S3, do not upload
         run: pio run -c platformio.guislice-lgfx.ini -e fnk0086_lgfx
