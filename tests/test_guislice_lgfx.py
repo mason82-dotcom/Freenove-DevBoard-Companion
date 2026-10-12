@@ -65,6 +65,25 @@ class GUIsliceLovyanPrototypeTests(unittest.TestCase):
         self.assertNotIn("#define TFT_HEIGHT", workflow)
         self.assertIn("#define SPI_FREQUENCY 80000000", workflow)
 
+    def test_st7789_first_boot_spi_mode_color_order_and_clock(self):
+        # The actual vendor CFG1 has TFT_RGB_ORDER=TFT_BGR and
+        # TFT_INVERSION_OFF; TFT_BGR is not a standalone numeric macro.
+        self.assertIn("busCfg.spi_mode = 3;", self.device)
+        self.assertIn("constexpr bool kRgbOrder = (TFT_RGB_ORDER != 1);",
+                      self.device)
+        self.assertIn("panelCfg.rgb_order = FnkVerifiedCfg1::kRgbOrder;",
+                      self.device)
+        self.assertIn("panelCfg.invert = FnkVerifiedCfg1::kInvert;",
+                      self.device)
+        self.assertIn("kSpiWriteHz <= 40000000U ? kSpiWriteHz : 40000000U",
+                      self.device)
+        self.assertIn("busCfg.freq_write = FnkVerifiedCfg1::kSafeFirstBootHz;",
+                      self.device)
+        workflow = (ROOT / ".github" / "workflows" /
+                    "guislice-lovyangfx.yml").read_text(encoding="utf-8")
+        self.assertIn("#define TFT_RGB_ORDER TFT_BGR", workflow)
+        self.assertIn("#define TFT_INVERSION_OFF", workflow)
+
     def test_touch_is_single_mapped_source(self):
         self.assertRegex(self.cfg, r"(?m)^\s*#define DRV_TOUCH_HANDLER\b")
         self.assertNotRegex(self.cfg, r"(?m)^\s*#define DRV_TOUCH_NONE\b")
