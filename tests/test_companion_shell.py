@@ -48,6 +48,13 @@ class CompanionShellTests(unittest.TestCase):
             with self.subTest(symbol=expected):
                 self.assertIn(expected, source)
 
+    def test_lvgl_version_assertion_uses_correct_macros(self):
+        source = (ROOT / "src" / "CompanionUi.cpp").read_text(encoding="utf-8")
+        self.assertIn("LVGL_VERSION_MAJOR == 8", source)
+        self.assertIn("LVGL_VERSION_MINOR == 3", source)
+        self.assertNotIn("LV_VERSION_MAJOR", source)
+        self.assertNotIn("LV_VERSION_MINOR", source)
+
     def test_no_transport_or_control_in_shell(self):
         source = "\n".join(
             (ROOT / "src" / part).read_text(encoding="utf-8")
