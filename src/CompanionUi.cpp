@@ -7,7 +7,7 @@
 #include "CompanionUi.h"
 #include "TouchTransform.h"
 
-static_assert(LV_VERSION_MAJOR == 8 && LV_VERSION_MINOR == 3,
+static_assert(LVGL_VERSION_MAJOR == 8 && LVGL_VERSION_MINOR == 3,
               "This shell requires LVGL 8.3.x");
 
 namespace {
