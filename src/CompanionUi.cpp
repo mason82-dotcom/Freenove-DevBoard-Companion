@@ -244,6 +244,8 @@ void setDiagnosticStage(uint8_t stage) {
     if (!ready || stage > 2) return;
     diagStage = stage;
     diagFlushCount = 0;
+    lastTick = millis();
+    lastSystemRefresh = lastTick;
     Serial.printf("DIAG STAGE %u: %s\n",
                   static_cast<unsigned>(stage),
                   stage == 0 ? "paused" :
