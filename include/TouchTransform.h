@@ -20,4 +20,11 @@ constexpr Point rawToLandscape(uint16_t rawX, uint16_t rawY) {
     const uint16_t boundedRawX = clampCoordinate(rawX, 239);
     return {x, static_cast<uint16_t>(239 - boundedRawX)};
 }
+// Integer-distance hit test: avoids floating point and remains usable on-device.
+constexpr bool isNear(Point actual, Point expected, uint16_t radius = 40) {
+    const int32_t dx = static_cast<int32_t>(actual.x) - expected.x;
+    const int32_t dy = static_cast<int32_t>(actual.y) - expected.y;
+    const int32_t limit = static_cast<int32_t>(radius);
+    return dx * dx + dy * dy <= limit * limit;
+}
 }  // namespace TouchTransform
