@@ -1,6 +1,6 @@
 # GUIslice + LovyanGFX (FNK0086 experiment)
 
-**Status: source-only experimental port; build and hardware validation pending.** This is an isolated prototype. It does **not** change the LVGL 9 firmware, default `platformio.ini`, stable touch calibration, the current Raspberry Pi working tree, or any external system.
+**Status: experimental port; synthetic-CFG1 CI build passed previously; build with the real verified CFG1 and on-device validation remain pending.** This is an isolated prototype. It does **not** change the LVGL 9 firmware, default `platformio.ini`, stable touch calibration, the current Raspberry Pi working tree, or any external system.
 
 ## Hardware and libraries
 
@@ -8,10 +8,18 @@
 - **LovyanGFX 1.2.32:** ONLY ST7789 graphics driver, 240×320 physical panel, rotated to 320×240 by GUIslice's `GSLC_ROTATE 1`.
 - **GUIslice TFT_eSPI adapter:** the existing upstream GUIslice `DRV_DISP_TFT_ESPI` backend is connected to LovyanGFX's upstream `LGFX_TFT_eSPI.hpp` compatibility layer using the project's `include/TFT_eSPI.h` shim. **The Bodmer TFT_eSPI package is NOT installed or linked.** This path is experimental and must be compiled to assess actual API compatibility.
 - **FT6336U:** the already validated read-only `BoardTouch` I²C handler, via GUIslice `DRV_TOUCH_HANDLER`. It passes the existing `TouchTransform::rawToLandscape` positions with `gslc_SetTouchRemapEn(false)` to avoid double rotation.
-- **CFG1 only:** the LovyanGFX panel class reads locally imported `include/VerifiedDisplaySetup.h` macros; requires ST7789, size 240×320, MOSI20, SCLK21, DC0. No default CFG2 and no board autodetect. Other ST7789 settings (color order, inversion, backlight control) need on-board validation.
+- **CFG1 only:** the LovyanGFX panel class reads locally imported `include/VerifiedDisplaySetup.h` macros; requires ST7789, MOSI20, SCLK21, DC0. The hardware-confirmed panel size 240×320 is configured explicitly in the LovyanGFX panel because the real CFG1 header does not define `TFT_WIDTH`/`TFT_HEIGHT`; if they are defined, their values are still strictly validated. No default CFG2 and no board autodetect. Other ST7789 settings (color order, inversion, backlight control) need on-board validation.
 - **ESP32-S3:** pioarduino 55.03.39, 8MB Flash/PSRAM, same partitions file as LVGL.
 
 The prototype is read-only. Hermes, Webradio, OBD2, Drohne and Kamera are placeholder pages with **no network requests or device commands**. System shows only locally reported ESP32 data.
+
+## Real CFG1 header verification and build fix (2026-10-12)
+
+The user's `VerifiedDisplaySetup.h` in the GUIslice test worktree and the previously working LVGL 9 test worktree have the **same SHA256**: `209d0836b1d43a265a6b32a2c74a2ea523033e2b2aa704feff8ffc3d23487880`.
+
+Its effective definitions include `ST7789_DRIVER`, `TFT_MOSI=20`, `TFT_SCLK=21`, `TFT_DC=0` and `SPI_FREQUENCY=80000000`. It intentionally has no `TFT_WIDTH` or `TFT_HEIGHT` macros. Initial prototype builds incorrectly rejected it.
+
+The adapter was corrected to **require** `ST7789_DRIVER`, verify all three GPIOs, and reject conflicting dimensions **only if those optional macros are supplied**. It explicitly configures the already hardware-proven ST7789 physical resolution as 240×320. No edits to the user's CFG1 header and no board-profile fallback are necessary. The compile-only CI fixture likewise omits both dimension macros to protect this exact scenario. CI is only an approximation of the full vendor CFG1 file.
 
 ## Raspberry Pi build, without disturbing the working LVGL project
 
