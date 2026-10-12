@@ -5,6 +5,9 @@ on:
     branches:
       - experiment/guislice-lovyangfx
   workflow_dispatch:
+  pull_request:
+    branches:
+      - feature/deps-lvgl9
 
 permissions:
   contents: read
