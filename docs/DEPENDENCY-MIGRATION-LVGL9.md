@@ -1,6 +1,6 @@
 # Dependency migration: LVGL 9.6.0 (Freenove FNK0086)
 
-**Status:** LVGL 9 migration implemented and **Raspberry Pi 5 PlatformIO firmware build passed** on 2026-10-12; real FNK0086 runtime/hardware validation is still pending. The firmware was not uploaded by this GitHub change.
+**Status:** LVGL 9 migration implemented, **Raspberry Pi 5 PlatformIO build passed** and **all three staged on-device LVGL rendering checks passed** on 2026-10-12. GUI appearance, touch navigation and long-term stability validation are still pending. No firmware was uploaded remotely by GitHub.
 
 ## Real Raspberry Pi 5 build — PASS (2026-10-12)
 
@@ -18,6 +18,18 @@ Successfully created combined binary image.
 The combined `firmware.factory.bin` image is an additional build artifact, **not** an instruction to flash at address zero. For normal testing, use the existing `pio run -e fnk0086 -t upload` workflow with the explicitly verified serial board port.
 
 The current LVGL 9 shell remains a diagnostic firmware with staged activation (stage 0 pause, stage 1 LVGL without TFT SPI, stage 2 full rendering). Do not merge to `main` until on-device stages and navigation have been tested. Do not assume the LVGL 8 runtime crash is cured solely because LVGL 9 builds.
+
+## Real FNK0086 diagnostic runtime — stages 0/1/2 PASS (2026-10-12)
+
+The operator has flashed the LVGL 9.6.0 build and supplied live UART logs from the board:
+
+| Stage | Observed evidence | Result |
+|---|---|---|
+| 0, LVGL timer paused | Uptime through 26 seconds; heap=266024, free PSRAM=8383572, loop stack HWM=6296 | PASS |
+| 1, LVGL rendering without TFT SPI | `DIAG FLUSH #1..#3` for contiguous 320x20 slices; uptime through 40 seconds, heap=266024, PSRAM=8383572, loop stack HWM=3720 | PASS (about 14 seconds) |
+| 2, LVGL rendering with TFT SPI | `DIAG SPI ENTER pixels=6400`, `DIAG SPI EXIT`; uptime through 52 seconds, heap=266000, PSRAM=8383524, loop stack HWM=3720 | PASS (about 12 seconds) |
+
+The initial LVGL 8.3 `InstructionFetchError` and corrupted backtrace did not recur during these checks. All three stages now execute and the actual SPI flush finishes. **A displayed image/photo, all six touch tiles, back navigation, and the 10-minute soak test are not yet confirmed.** Do not call this a full hardware acceptance or merge the PR to main on these logs alone.
 
 ## Versions
 
@@ -72,7 +84,7 @@ If the original verified CFG1 header is not available, do not substitute CFG2; s
 
 1. Host Python and constexpr C++ tests green (**passed: 17/17**).
 2. Actual `pio run -e fnk0086` on Pi reports SUCCESS with no linker errors (**passed 2026-10-12**).
-3. Stages 0, 1 and 2 stable; LVGL flush reaches `DIAG SPI EXIT` and renders six tiles.
+3. Stages 0, 1 and 2 stable and LVGL flush reaches `DIAG SPI EXIT` (**passed in the short staged hardware test**); visually rendering all six tiles **not yet confirmed**.
 4. All six tiles respond to touch and back navigation works.
 5. Ten-minute serial test with stable heap/PSRAM and no Guru Meditation Error.
 
