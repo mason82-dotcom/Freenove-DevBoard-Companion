@@ -168,7 +168,8 @@ bool buildGui() {
             if (!statusUptime || !statusHeap || !statusPsram) return false;
             // Opaque black backgrounds clear old digits on incremental
             // redraw (e.g. switching from 999 s to 1000 s).
-            for (auto* ref : {statusUptime, statusHeap, statusPsram}) {
+            gslc_tsElemRef* systemRefs[] = {statusUptime, statusHeap, statusPsram};
+            for (auto* ref : systemRefs) {
                 gslc_ElemSetCol(&gui, ref, GSLC_COL_BLACK,
                                 GSLC_COL_BLACK, GSLC_COL_BLACK);
                 gslc_ElemSetFillEn(&gui, ref, true);
