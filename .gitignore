@@ -1,0 +1,10 @@
+.pio/
+.vscode/
+__pycache__/
+*.pyc
+include/VerifiedDisplaySetup.h
+.env
+secrets.*
+*.pem
+*.key
+config/private/
