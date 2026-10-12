@@ -1,6 +1,23 @@
 # Dependency migration: LVGL 9.6.0 (Freenove FNK0086)
 
-**Status:** Migration implemented on a separate feature branch. Unit tests run via GitHub Actions; an actual ESP32-S3 PlatformIO build and hardware validation are still pending. No firmware was uploaded remotely.
+**Status:** LVGL 9 migration implemented and **Raspberry Pi 5 PlatformIO firmware build passed** on 2026-10-12; real FNK0086 runtime/hardware validation is still pending. The firmware was not uploaded by this GitHub change.
+
+## Real Raspberry Pi 5 build — PASS (2026-10-12)
+
+The operator built `~/Projekte/Freenove-DevBoard-Companion-lvgl9-test` using `pio run -e fnk0086` and supplied the complete successful linker/size/firmware-image tail:
+
+```text
+RAM:   31.5% (used 103124 bytes from 327680 bytes)
+Flash: 21.1% (used 664910 bytes from 3145728 bytes)
+esptool v5.3.0
+Successfully created ESP32-S3 image.
+Successfully created combined binary image.
+======== [SUCCESS] Took 672.05 seconds ========
+```
+
+The combined `firmware.factory.bin` image is an additional build artifact, **not** an instruction to flash at address zero. For normal testing, use the existing `pio run -e fnk0086 -t upload` workflow with the explicitly verified serial board port.
+
+The current LVGL 9 shell remains a diagnostic firmware with staged activation (stage 0 pause, stage 1 LVGL without TFT SPI, stage 2 full rendering). Do not merge to `main` until on-device stages and navigation have been tested. Do not assume the LVGL 8 runtime crash is cured solely because LVGL 9 builds.
 
 ## Versions
 
@@ -53,8 +70,8 @@ If the original verified CFG1 header is not available, do not substitute CFG2; s
 
 ## Acceptance criteria
 
-1. Host Python and constexpr C++ tests green.
-2. Actual `pio run -e fnk0086` on Pi reports SUCCESS with no linker errors.
+1. Host Python and constexpr C++ tests green (**passed: 17/17**).
+2. Actual `pio run -e fnk0086` on Pi reports SUCCESS with no linker errors (**passed 2026-10-12**).
 3. Stages 0, 1 and 2 stable; LVGL flush reaches `DIAG SPI EXIT` and renders six tiles.
 4. All six tiles respond to touch and back navigation works.
 5. Ten-minute serial test with stable heap/PSRAM and no Guru Meditation Error.
