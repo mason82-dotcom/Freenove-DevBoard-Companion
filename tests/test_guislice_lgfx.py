@@ -95,11 +95,9 @@ class GUIsliceLovyanPrototypeTests(unittest.TestCase):
         ):
             self.assertIn(f"char {incoming}[sizeof({existing})];",
                           self.main)
-            self.assertRegex(
-                self.main,
-                rf"snprintf\\({incoming}, sizeof\\({incoming}\\),",
-            )
-            self.assertNotRegex(self.main, rf"snprintf\\({existing}\\s*,")
+            self.assertIn(f"snprintf({incoming}, sizeof({incoming}),",
+                          self.main)
+            self.assertNotIn(f"snprintf({existing},", self.main)
         self.assertIn("gslc_ElemSetTxtStr(&gui, statusUptime, nextUptime);",
                       self.main)
         self.assertIn("gslc_ElemSetTxtStr(&gui, statusHeap, nextHeap);",
