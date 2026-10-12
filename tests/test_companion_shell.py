@@ -55,6 +55,23 @@ class CompanionShellTests(unittest.TestCase):
         self.assertNotIn("LV_VERSION_MAJOR", source)
         self.assertNotIn("LV_VERSION_MINOR", source)
 
+    def test_lvgl_driver_lifetime_is_static(self):
+        # LVGL 8.3 does not copy the drv structs: its registered pointer must
+        # not dangle when CompanionUi::begin returns to the Arduino loop.
+        import re
+        gui = (ROOT / "src" / "CompanionUi.cpp").read_text(encoding="utf-8")
+        namespace_prefix = gui.split("bool begin(bool touchPresent)", 1)[0]
+        begin_body = gui.split("bool begin(bool touchPresent)", 1)[1]
+        for typename, name in (
+            ("lv_disp_drv_t", "displayDriver"),
+            ("lv_indev_drv_t", "inputDriver"),
+        ):
+            with self.subTest(driver=name):
+                decl = rf"\\bstatic\\s+{typename}\\s+{name}\\s*;"
+                self.assertRegex(namespace_prefix, decl)
+                self.assertNotRegex(begin_body, rf"\\b{typename}\\s+{name}\\s*;")
+                self.assertIn(f"lv_{{'disp' if name == 'displayDriver' else 'indev'}}_drv_register(&{name})", gui)
+
     def test_diagnostic_stages_pause_lvgl_and_bypass_spi(self):
         main = (ROOT / "src" / "main.cpp").read_text(encoding="utf-8")
         gui = (ROOT / "src" / "CompanionUi.cpp").read_text(encoding="utf-8")
