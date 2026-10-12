@@ -56,10 +56,16 @@ void flushDisplay(lv_disp_drv_t* drv, const lv_area_t* area, lv_color_t* colors)
     // LVGL 8.3 supplies RGB565 because include/lv_conf.h sets LV_COLOR_DEPTH=16.
     const uint32_t w = static_cast<uint32_t>(area->x2 - area->x1 + 1);
     const uint32_t h = static_cast<uint32_t>(area->y2 - area->y1 + 1);
+    if (diagFlushCount == 1) {
+        Serial.printf("DIAG SPI ENTER pixels=%lu\n",
+                      static_cast<unsigned long>(w * h));
+        Serial.flush();
+    }
     screen.startWrite();
     screen.setAddrWindow(area->x1, area->y1, w, h);
     screen.pushColors(reinterpret_cast<uint16_t*>(colors), w * h, true);
     screen.endWrite();
+    if (diagFlushCount == 1) Serial.println("DIAG SPI EXIT");
     lv_disp_flush_ready(drv);
 }
 
@@ -237,6 +243,7 @@ bool begin(bool touchPresent) {
 void setDiagnosticStage(uint8_t stage) {
     if (!ready || stage > 2) return;
     diagStage = stage;
+    diagFlushCount = 0;
     Serial.printf("DIAG STAGE %u: %s\n",
                   static_cast<unsigned>(stage),
                   stage == 0 ? "paused" :
