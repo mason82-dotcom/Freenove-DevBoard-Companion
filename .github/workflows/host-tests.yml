@@ -1,0 +1,25 @@
+name: Host tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - feature/fnk0086-landscape-touch
+
+permissions:
+  contents: read
+
+jobs:
+  python-and-cpp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run CFG1 and C++ touch transform tests
+        run: python3 -m unittest discover -s tests -v
