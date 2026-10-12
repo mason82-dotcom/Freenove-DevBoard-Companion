@@ -17,7 +17,7 @@ Successfully created combined binary image.
 
 The combined `firmware.factory.bin` image is an additional build artifact, **not** an instruction to flash at address zero. For normal testing, use the existing `pio run -e fnk0086 -t upload` workflow with the explicitly verified serial board port.
 
-The current LVGL 9 shell remains a diagnostic firmware with staged activation (stage 0 pause, stage 1 LVGL without TFT SPI, stage 2 full rendering). Do not merge to `main` until on-device stages and navigation have been tested. Do not assume the LVGL 8 runtime crash is cured solely because LVGL 9 builds.
+That firmware was the user-tested staged diagnostic version. The follow-up source now boots into stage 2 automatically for normal use. The auto-start change has not yet been built or flashed on the Pi; verify its startup in a separate smoke test before calling that revision hardware-tested. `main` has not been modified.
 
 ## Real FNK0086 diagnostic runtime — stages 0/1/2 PASS (2026-10-12)
 
@@ -75,7 +75,7 @@ LVGL 9 no longer uses LVGL 8's `lv_disp_drv_t`, `lv_disp_draw_buf_t`, and `lv_in
 
 LVGL 9 internally owns the created display/input objects, eliminating the invalid stack-lifetime pattern found in the LVGL 8 prototype. The partial 320 × 20 × 2 byte RGB565 draw buffer stays static and 4-byte aligned in internal RAM. The UI remains 320 × 240, CFG1 rotation 1, with the previously validated transformation `x=rawY; y=239-rawX`.
 
-The **staged diagnostic boot is retained**: enter `1` to test the renderer without sending TFT SPI transfers, then `2` only if stage 1 is stable. This migration has not yet passed those stages on hardware. It does not enable Wi-Fi, vehicle commands, drone control, sound or camera capture.
+The staged hardware test **passed stages 0, 1 and 2** with real touch navigation. A new follow-up change starts directly at stage 2 for normal operation; a paused diagnostic boot is opt-in at compile time using `COMPANION_DIAGNOSTIC_BOOT=1`. The UART commands 0/1/2 remain available. No Wi-Fi, vehicle, drone, sound or camera control is enabled.
 
 ## Safe Raspberry Pi test worktree
 
@@ -110,9 +110,10 @@ Evidence provenance is preserved: objective UART records submitted in this conve
 2. Actual `pio run -e fnk0086` on Pi reports SUCCESS with no linker errors (**passed 2026-10-12**).
 3. Stages 0, 1 and 2 stable and LVGL flush reaches `DIAG SPI EXIT` (**passed in the short staged hardware test**); all six tiles now **visually confirmed by user photo**.
 4. Touch navigation works (**confirmed by user**); explicit per-tile serial checks are optional.
-5. Ten-minute stability test (**PASS per the user's explicit acceptance on 2026-10-12**). Independent serial evidence available up to uptime 270102 ms (~230 s in stage 2), showing constant heap=266000, PSRAM=8383524 and no panic; a continuous 10-minute serial log has not been supplied.
+5. Ten-minute stability test (**PASS on explicit user confirmation, 2026-10-12**). The submitted UART traces end at uptime 270102 ms (~230 s in stage 2), with unchanged heap=266000, PSRAM=8383524 and no panic. The complete ten-minute log was not supplied.
+6. The **new normal auto-start revision** builds and boots without a serial command (**pending**; previous stage-2 code was hardware-tested, but the auto-start behavior is new).
 
-No merge to `main` until both the LVGL9 build and real-device validation succeed.
+The dependency migration and hardware acceptance have been confirmed by the user, but the subsequent normal auto-start code still requires its own firmware build and boot smoke test. Do not merge this stacked PR into `main` until that revised build is verified and prior PR dependencies are reconciled.
 
 ## References
 
