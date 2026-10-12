@@ -23,6 +23,8 @@ uint32_t lastTick = 0;
 uint32_t lastSystemRefresh = 0;
 bool touchEnabled = false;
 bool ready = false;
+uint8_t diagStage = 0;  // Paused on boot: no LVGL timers or SPI writes yet.
+uint32_t diagFlushCount = 0;
 
 // 0 means Home. 1..6 correspond to CompanionModules::kModules.
 uint8_t shownPage = 0;
@@ -34,6 +36,18 @@ lv_color_t color(uint32_t rgb) {
 }
 
 void flushDisplay(lv_disp_drv_t* drv, const lv_area_t* area, lv_color_t* colors) {
+    ++diagFlushCount;
+    if (diagFlushCount <= 3) {
+        Serial.printf("DIAG FLUSH #%lu stage=%u area=%d,%d..%d,%d\n",
+                      static_cast<unsigned long>(diagFlushCount),
+                      static_cast<unsigned>(diagStage),
+                      area->x1, area->y1, area->x2, area->y2);
+    }
+    // Stage 1 exercises LVGL's drawing pipeline without touching the TFT SPI bus.
+    if (diagStage != 2) {
+        lv_disp_flush_ready(drv);
+        return;
+    }
     if (area->x2 < 0 || area->y2 < 0 ||
         area->x1 >= kWidth || area->y1 >= kHeight) {
         lv_disp_flush_ready(drv);
@@ -51,7 +65,7 @@ void flushDisplay(lv_disp_drv_t* drv, const lv_area_t* area, lv_color_t* colors)
 
 void readPointer(lv_indev_drv_t*, lv_indev_data_t* data) {
     uint16_t x = 0, y = 0;
-    if (!touchEnabled || !BoardTouch::readRaw(x, y)) {
+    if (diagStage != 2 || !touchEnabled || !BoardTouch::readRaw(x, y)) {
         data->state = LV_INDEV_STATE_REL;
         return;
     }
@@ -212,14 +226,33 @@ bool begin(bool touchPresent) {
     requestedPage = 0;
     showHome();
     ready = true;
+    diagStage = 0;
+    diagFlushCount = 0;
     Serial.printf("LVGL shell ready: %dx%d, touch=%s, modules=%u\n",
                   kWidth, kHeight, touchEnabled ? "OK" : "MISSING",
                   static_cast<unsigned>(CompanionModules::kModuleCount));
     return true;
 }
 
+void setDiagnosticStage(uint8_t stage) {
+    if (!ready || stage > 2) return;
+    diagStage = stage;
+    Serial.printf("DIAG STAGE %u: %s\n",
+                  static_cast<unsigned>(stage),
+                  stage == 0 ? "paused" :
+                  stage == 1 ? "LVGL render; TFT SPI bypassed" :
+                               "LVGL render; TFT SPI enabled");
+    // A previous stage may have acknowledged flushes without actual TFT writes.
+    // Force a complete repaint at stage 2 to make these writes observable.
+    if (stage != 0) lv_obj_invalidate(lv_scr_act());
+}
+
+uint8_t diagnosticStage() {
+    return diagStage;
+}
+
 void poll() {
-    if (!ready) return;
+    if (!ready || diagStage == 0) return;
     const uint32_t now = millis();
     const uint32_t elapsed = now - lastTick;
     if (elapsed > 0) {
