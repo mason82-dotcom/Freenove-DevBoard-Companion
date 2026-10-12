@@ -66,3 +66,23 @@ Andere Projekte wie Webradio_v2, OpenNextion_Hermes_Dashboard, OpenNextion_ELM32
 ## Lizenz
 
 Originaldateien von Freenove können zusätzlichen Lizenzbedingungen unterliegen (unter anderem CC BY-NC-SA 3.0). Vor einer Übernahme von Hersteller-Code müssen die Bedingungen geprüft werden.
+
+## Bekannter Blocker: GUI-Boot-Panic – 12.10.2026
+
+Der erste LVGL-v0.2.0-Hardwaretest initialisiert FT6336U, PSRAM und den LVGL-Displaytreiber erfolgreich, stürzt aber unmittelbar danach mit Core-0-Cache/MMU-Fehler, beschädigtem Backtrace und sekundärer IDLE0-Stack-Canary-Panic ab. **Die eigentliche Ursache ist noch nicht ermittelt**. Keine weiteren Module einschalten oder diesen Branch als stabil bezeichnen.
+
+**Wichtig: Vor dem nächsten `pio run` zuerst die Adressen der abgestürzten ELF-Datei dekodieren!** Ein Rebuild könnte `.pio/build/fnk0086/firmware.elf` ersetzen und den alten Panic-Adressen ihre Zuordnung nehmen.
+
+```bash
+cd ~/Projekte/Freenove-DevBoard-Companion-lvgl-test
+git fetch origin feature/lvgl-companion-shell
+git show origin/feature/lvgl-companion-shell:tools/decode_panic.sh > /tmp/companion-decode-panic.sh
+bash /tmp/companion-decode-panic.sh
+```
+
+Die Diagnose liest ausschließlich das bestehende ELF und die lokale Xtensa-`addr2line`-Toolchain. Sie baut oder flasht nicht. Die dekodierten Funktionsnamen und Zeilen entscheiden über den nächsten gezielten Fix (LVGL-Rendering, TFT_eSPI-Flush, Stack oder Speicherzugriff). `No core dump partition found` ist ein zusätzlicher Logging-Hinweis und derzeit keine bewiesene Absturzursache.
+
+### Rückkehr zum bestätigten Touch-Test
+
+Falls die Reboot-Schleife den Testbetrieb blockiert, bleibt der vorherige, auf echter Hardware abgenommene Firmwarestand im eigenen Worktree unter `~/Projekte/Freenove-DevBoard-Companion-touch-test`. Nach erneuter Portprüfung kann er gezielt erneut geflasht werden. Den Original-Checkout nicht zurücksetzen und das funktionsfähige CFG1 nicht verändern.
+
