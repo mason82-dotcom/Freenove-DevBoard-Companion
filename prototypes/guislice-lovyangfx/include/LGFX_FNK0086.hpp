@@ -60,7 +60,11 @@ constexpr bool kInvert = false;
 // #if expression its value is 0, exactly as TFT_eSPI's ST7789 driver reads it.
 // LovyanGFX's rgb_order=true selects BGR (red/blue exchanged).
 #if defined(TFT_RGB_ORDER)
-constexpr bool kRgbOrder = (TFT_RGB_ORDER != 1);
+  #if TFT_RGB_ORDER == 1
+constexpr bool kRgbOrder = false; // RGB
+  #else
+constexpr bool kRgbOrder = true;  // BGR
+  #endif
 #else
 constexpr bool kRgbOrder = false;
 #endif
