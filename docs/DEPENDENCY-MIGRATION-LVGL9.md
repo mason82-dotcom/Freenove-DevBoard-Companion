@@ -1,6 +1,6 @@
 # Dependency migration: LVGL 9.6.0 (Freenove FNK0086)
 
-**Status:** LVGL 9 migration implemented, **Raspberry Pi 5 PlatformIO build passed** and **all three staged on-device LVGL rendering checks passed** on 2026-10-12. GUI rendering and touch navigation are now observed working on board; ten-minute stability validation is pending. No firmware was uploaded remotely by GitHub.
+**Status:** LVGL 9 migration implemented, **Raspberry Pi 5 PlatformIO build passed** and **all three staged on-device LVGL rendering checks passed** on 2026-10-12. GUI rendering and touch navigation are now observed working on board; ten-minute stability test has been marked PASS on the user's explicit confirmation (full ten-minute log was not provided). No firmware was uploaded remotely by GitHub.
 
 ## Real Raspberry Pi 5 build — PASS (2026-10-12)
 
@@ -98,13 +98,19 @@ If the original verified CFG1 header is not available, do not substitute CFG2; s
 
 **Do not flash immediately after a successful build without reviewing the compilation report and re-confirming the board's USB port.** The existing hardware-validated five-point touch test remains available at `~/Projekte/Freenove-DevBoard-Companion-touch-test`.
 
+## User acceptance of the hardware test — 2026-10-12
+
+The user explicitly instructed: **"Test als bestanden markieren"** following the previously supplied LVGL 9 photo, functioning touch navigation, complete stage 0/1/2 diagnostic output, and stable runtime logs. Record the hardware acceptance test as **PASS (user-confirmed)**.
+
+Evidence provenance is preserved: objective UART records submitted in this conversation end at `uptime=270102 ms` (approximately 230 seconds of continuous stage-2 execution); no uninterrupted ten-minute log was shared. Therefore the ten-minute test result is user-attested, not independently verified from a complete serial trace. The test was run on the manually staged diagnostic firmware; a later auto-start firmware change would require its own boot smoke check.
+
 ## Acceptance criteria
 
 1. Host Python and constexpr C++ tests green (**passed: 17/17**).
 2. Actual `pio run -e fnk0086` on Pi reports SUCCESS with no linker errors (**passed 2026-10-12**).
 3. Stages 0, 1 and 2 stable and LVGL flush reaches `DIAG SPI EXIT` (**passed in the short staged hardware test**); all six tiles now **visually confirmed by user photo**.
 4. Touch navigation works (**confirmed by user**); explicit per-tile serial checks are optional.
-5. Ten-minute serial test with stable heap/PSRAM and no Guru Meditation Error (**partial pass up to uptime 270102 ms; target approximately uptime >= 640000 ms for 10 minutes at stage 2**).
+5. Ten-minute stability test (**PASS per the user's explicit acceptance on 2026-10-12**). Independent serial evidence available up to uptime 270102 ms (~230 s in stage 2), showing constant heap=266000, PSRAM=8383524 and no panic; a continuous 10-minute serial log has not been supplied.
 
 No merge to `main` until both the LVGL9 build and real-device validation succeed.
 
