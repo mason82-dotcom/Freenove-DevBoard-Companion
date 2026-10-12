@@ -1,5 +1,24 @@
 # FNK0086: fünfpunktiger Landscape-Touch-Test (CFG1)
 
+## Hardwareabnahme 12.10.2026 – PASS
+
+Der Benutzer hat die Firmware auf dem Raspberry Pi 5 erfolgreich mit PlatformIO 55.03.32 gebaut (`[SUCCESS] Took 54.51 seconds`, Flash 388851 Byte, 12.4 %, statischer RAM 22824 Byte, 7.0 %).
+
+Anschließend wurden **alle fünf Touchziele auf dem realen FNK0086 erfolgreich getroffen**, protokolliert über `/dev/serial/by-id/usb-1a86_USB_Single_Serial_58FC003021-if00`:
+
+| Ziel | Roh X/Y | Display X/Y | Ergebnis |
+|---|---|---|---|
+| 1 oben links | 217/27 | 27/22 | PASS |
+| 2 oben rechts | 198/292 | 292/41 | PASS |
+| 3 unten links | 6/24 | 24/233 | PASS |
+| 4 unten rechts | 8/299 | 299/231 | PASS |
+| 5 Mitte | 116/165 | 165/123 | PASS |
+
+Letzte Monitorzeile: `HARDWARE TOUCH TEST PASSED (5/5)`.
+
+`free_heap=345556` und `free_psram=8382796` blieben von 15 bis 30 Sekunden stabil. **Damit ist die feste Touch-Rotation für den jetzigen Aufbau hardwarevalidiert.** Der Test liefert keinen Langzeitstabilitäts- oder Belastungsnachweis für spätere Module.
+
+
 ## Hardware-Messwerte und feste Transformation
 
 **Nur Freenove FNK0086 CFG1**: `FNK0086A_2P8_CFG1_240x320_ST7789`.
