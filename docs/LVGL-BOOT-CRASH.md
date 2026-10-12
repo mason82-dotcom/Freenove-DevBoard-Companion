@@ -106,3 +106,20 @@ In an Xtensa backtrace `A0` and `A8` high-bit-coded code addresses can be mapped
 
 **Do not run `pio run` before collecting these symbols:** a re-link changes addresses and invalidates a match to the crash ELF.
 
+
+## Root-cause code defect identified after symbolication (2026-10-12)
+
+The second captured crash matched its ELF SHA256 exactly (`5e6a3b60570c3bb712ca2d6ab1caa8f6865387fa3af675bbe01d106b4dd6ab54`).
+
+`addr2line` resolved the caller to `lv_timer_exec()/lv_timer_handler()` at `lv_timer.c:313`; execution then entered `refr_invalid_areas()` around `lv_refr.c:595–608`. This is immediately before the normal display rendering/flush sequence.
+
+Inspection of **official LVGL v8.3.11 source** established an application bug:
+- `lv_disp_drv_register()` stores `disp->driver = driver` and documents "Only its pointer is saved!"
+- `lv_indev_drv_register()` stores `indev->driver = driver`, also retaining caller-owned memory
+- Our previous `CompanionUi::begin()` used two **automatic local** driver structs (`lv_disp_drv_t displayDriver;` and `lv_indev_drv_t inputDriver;`). Their lifetime ended when `begin()` returned, producing dangling LVGL driver pointers when stage 1 triggered `lv_timer_handler()`.
+- The invalid execution PC `0x3fcec070` is consistent with a function pointer read from the former stack storage.
+
+**Fix:** `displayDriver` and `inputDriver` are now static namespace-scope objects in `src/CompanionUi.cpp`; initialization and callback registration continue to use their stable addresses. The existing global draw buffer was already persistent. A host regression test checks the persistent declarations and rejects local shadow declarations.
+
+**Verification pending:** This is a definitive code ownership defect with a matching crash mechanism, but a new build and real-device stage-1 / stage-2 acceptance test are still required before claiming the GUI's instability is resolved. The staged diagnostics are intentionally retained. Do not reapply the original automated pointer-lifetime pattern.
+
