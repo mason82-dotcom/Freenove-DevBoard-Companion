@@ -84,6 +84,35 @@ class GUIsliceLovyanPrototypeTests(unittest.TestCase):
         self.assertIn("#define TFT_RGB_ORDER TFT_BGR", workflow)
         self.assertIn("#define TFT_INVERSION_OFF", workflow)
 
+    def test_system_live_values_trigger_redraw(self):
+        # GUIslice uses strncmp(element_buffer, incoming_text) before copying
+        # and setting GSLC_REDRAW_INC. Writing into its retained buffer
+        # first makes the two operands identical, freezing the display.
+        for existing, incoming in (
+            ("uptimeText", "nextUptime"),
+            ("heapText", "nextHeap"),
+            ("psramText", "nextPsram"),
+        ):
+            self.assertIn(f"char {incoming}[sizeof({existing})];",
+                          self.main)
+            self.assertRegex(
+                self.main,
+                rf"snprintf\\({incoming}, sizeof\\({incoming}\\),",
+            )
+            self.assertNotRegex(self.main, rf"snprintf\\({existing}\\s*,")
+        self.assertIn("gslc_ElemSetTxtStr(&gui, statusUptime, nextUptime);",
+                      self.main)
+        self.assertIn("gslc_ElemSetTxtStr(&gui, statusHeap, nextHeap);",
+                      self.main)
+        self.assertIn("gslc_ElemSetTxtStr(&gui, statusPsram, nextPsram);",
+                      self.main)
+        # Clearing the prior glyphs makes updates readable on the ST7789.
+        self.assertIn("gslc_ElemSetFillEn(&gui, ref, true);", self.main)
+        self.assertIn("gslc_ElemSetCol(&gui, ref, GSLC_COL_BLACK,",
+                      self.main)
+        self.assertIn("currentPage == 5 && now - lastStatusMs >= 1000",
+                      self.main)
+
     def test_touch_is_single_mapped_source(self):
         self.assertRegex(self.cfg, r"(?m)^\s*#define DRV_TOUCH_HANDLER\b")
         self.assertNotRegex(self.cfg, r"(?m)^\s*#define DRV_TOUCH_NONE\b")
