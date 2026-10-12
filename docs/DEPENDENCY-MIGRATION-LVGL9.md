@@ -49,6 +49,16 @@ The operator's UART log confirms navigation events with back transitions: `UI NA
 
 **Status: extended short soak successful, 10-minute stage-2 criterion still open.** With stage 2 starting near uptime 40 seconds, continue to approximately `uptime >= 640000 ms` while keeping stage 2 active to obtain ten full minutes after enabling the display. No reflash is needed merely to complete the test.
 
+## Global LVGL9 Extended profile — enabled in source
+
+The project-wide `include/lv_conf.h` now permanently defines `COMPANION_LVGL_PROFILE_EXTENDED=1`. PlatformIO passes `-DLV_CONF_INCLUDE_SIMPLE=1` and `-Iinclude` to all LVGL and application compilation units, so there is **one active Extended configuration, not per-module flags**.
+
+Enabled: `LV_USE_LABEL`, `LV_USE_BUTTON`, `LV_USE_CHART`, `LV_USE_BAR`, `LV_USE_SLIDER`, `LV_USE_IMAGE`, `LV_USE_FLEX`, `LV_USE_GRID`, `LV_USE_DRAW_SW` and `LV_USE_THEME_DEFAULT`. The verified LVGL 9 RGB565 settings, 64 KiB built-in memory pool and fixed FNK0086 CFG1 display/touch setup remain unchanged.
+
+Disabled are widgets unneeded for the intended telemetry UI (calendar, keyboard, text area, spinner, table, canvas, list/menu, tab/tile views, image button and others), along with Simple/Mono themes and the optional observer. Potential future dependencies need re-evaluation before a disabled widget is used.
+
+**Verification pending:** host tests validate explicit configuration. The previously submitted ESP32 build, photo, touch and stability evidence belongs to the LVGL 9 release **before** this profile change. Neither a new PlatformIO build nor real hardware acceptance of the Extended profile has been supplied yet. Do not claim reduced Flash/RAM until after measuring the next build.
+
 ## Versions
 
 | Component | Previous | Proposed pinned version |
