@@ -35,7 +35,7 @@ Successfully created combined binary image.
 
 The previous LVGL9 Pi build reported 664910 bytes Flash and 103124 bytes static RAM. These are **different functionality baselines**: the GUI and read-only System status can be compared, but neither platform has the actual Hermes, OBD2, drone or camera integrations yet. The GUIslice image is **NOT yet approved on hardware**.
 
-**Pre-flash review:** The original CFG1 sets `SPI_FREQUENCY=80000000` and that value is used by LovyanGFX's new SPI driver. The old working TFT_eSPI firmware does not prove that the new engine and ST7789 will behave identically at 80 MHz. Check the pin and optional backlight/reset/inversion definitions, identify the correct USB serial device, and expect to lower the experimental SPI clock only if needed. No automatic flashing. Confirm whether the GUI is readable (no inverted colors, wrong offsets or flicker), check the `FT6336U probe` log and every tile/back button before marking this test passed. The `firmware.factory.bin` artifact is not intended for manual flashing at 0x0.
+**Pre-flash review completed for the verified CFG1:** active `TFT_CS=-1`, no active `TFT_RST` or `TFT_BL` GPIO; `TFT_RGB_ORDER=TFT_BGR`, `TFT_INVERSION_OFF`, and `SPI_FREQUENCY=80000000`. The board serial adapter was checked as VID:PID `1A86:55D3`, serial `58FC003021`, symlink `/dev/serial/by-id/usb-1a86_USB_Single_Serial_58FC003021-if00` → `/dev/ttyACM0`. To match the previously working TFT_eSPI ST7789 driver, LovyanGFX now uses **SPI mode 3** and the requested **BGR** color ordering, while the experimental first-boot SPI transfer rate is deliberately capped at **40 MHz** (no modification to the original 80-MHz CFG1 header). No automatic flashing. Confirm whether the GUI is readable (no inverted colors, wrong offsets or flicker), check the `FT6336U probe` log and every tile/back button before marking this test passed. The `firmware.factory.bin` artifact is not intended for manual flashing at 0x0.
 
 ## Raspberry Pi build, without disturbing the working LVGL project
 
@@ -56,7 +56,7 @@ python3 -m unittest discover -s tests -v
 pio run -c platformio.guislice-lgfx.ini -e fnk0086_lgfx
 ```
 
-**Do not flash automatically.** The display driver is new, and the current working LVGL 9 version is the safe rollback. Only after a successful native build, review the log and confirm the attached board port. Normal (optional) manual upload is:
+**Do not flash automatically.** The display driver is new, and the current working LVGL 9 version is the safe rollback. After fetching the latest mode-3/BGR/40-MHz patch and building with the same real CFG1 header, confirm the attached board port again. Normal (optional) manual upload is:
 
 ```bash
 pio device list
