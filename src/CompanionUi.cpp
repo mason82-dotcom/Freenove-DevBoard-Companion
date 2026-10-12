@@ -130,7 +130,7 @@ void showHome() {
 
     newLabel(root, touchEnabled ? "Touch OK" : "Touch nicht erkannt", 9, 216,
              touchEnabled ? 0x80D8B0 : 0xFF9889);
-    newLabel(root, "System lokal | Keine Steuerung", 119, 216, 0x92A8C0);
+    newLabel(root, "Nur Anzeige", 226, 216, 0x92A8C0);
 }
 
 void updateSystemDetails() {
@@ -230,8 +230,14 @@ void poll() {
 
     if (requestedPage != shownPage) {
         shownPage = requestedPage;
-        if (shownPage == 0) showHome();
-        else showModule(shownPage);
+        if (shownPage == 0) {
+            Serial.println("UI NAV: Home");
+            showHome();
+        } else {
+            Serial.printf("UI NAV: %s\n",
+                          CompanionModules::kModules[shownPage - 1].title);
+            showModule(shownPage);
+        }
     }
 
     if (shownPage == 5 && now - lastSystemRefresh >= 1000) {
