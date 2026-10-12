@@ -10,6 +10,14 @@
 static_assert(LVGL_VERSION_MAJOR == 9 && LVGL_VERSION_MINOR == 6,
               "This shell requires LVGL 9.6.x");
 
+// Normal firmware boots directly into the GUI. Rebuild with
+// -DCOMPANION_DIAGNOSTIC_BOOT=1 to restore staged boot for fault isolation.
+#ifndef COMPANION_DIAGNOSTIC_BOOT
+#define COMPANION_DIAGNOSTIC_BOOT 0
+#endif
+static_assert(COMPANION_DIAGNOSTIC_BOOT == 0 || COMPANION_DIAGNOSTIC_BOOT == 1,
+              "COMPANION_DIAGNOSTIC_BOOT must be 0 or 1");
+
 namespace {
 constexpr int kWidth = 320;
 constexpr int kHeight = 240;
@@ -26,7 +34,7 @@ uint32_t lastTick = 0;
 uint32_t lastSystemRefresh = 0;
 bool touchEnabled = false;
 bool ready = false;
-uint8_t diagStage = 0;  // Paused on boot: no LVGL timers or SPI writes yet.
+uint8_t diagStage = 0;  // Assigned in begin: normal 2, diagnostic 0.
 uint32_t diagFlushCount = 0;
 
 // 0 means Home. 1..6 correspond to CompanionModules::kModules.
@@ -238,7 +246,7 @@ bool begin(bool touchPresent) {
     requestedPage = 0;
     showHome();
     ready = true;
-    diagStage = 0;
+    diagStage = COMPANION_DIAGNOSTIC_BOOT ? 0 : 2;
     diagFlushCount = 0;
     Serial.printf("LVGL shell ready: %dx%d, touch=%s, modules=%u\n",
                   kWidth, kHeight, touchEnabled ? "OK" : "MISSING",
