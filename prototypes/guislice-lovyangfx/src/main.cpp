@@ -104,15 +104,23 @@ bool addButton(int16_t page, int16_t id, gslc_tsRect rect, const char* label) {
 }
 
 void updateSystem() {
-    snprintf(uptimeText, sizeof(uptimeText), "Uptime: %lu s",
+    // GUIslice retains pointers to uptimeText/heapText/psramText.
+    // Its gslc_ElemSetTxtStr() compares the current text against the
+    // incoming string before copying and invalidating for redraw.
+    // Never format directly into those retained buffers: comparison would
+    // be against the same, already overwritten text and never repaint.
+    char nextUptime[sizeof(uptimeText)];
+    char nextHeap[sizeof(heapText)];
+    char nextPsram[sizeof(psramText)];
+    snprintf(nextUptime, sizeof(nextUptime), "Uptime: %lu s",
              static_cast<unsigned long>(millis() / 1000));
-    snprintf(heapText, sizeof(heapText), "Heap frei: %u B",
+    snprintf(nextHeap, sizeof(nextHeap), "Heap frei: %u B",
              static_cast<unsigned>(ESP.getFreeHeap()));
-    snprintf(psramText, sizeof(psramText), "PSRAM frei: %u B",
+    snprintf(nextPsram, sizeof(nextPsram), "PSRAM frei: %u B",
              static_cast<unsigned>(ESP.getFreePsram()));
-    if (statusUptime) gslc_ElemSetTxtStr(&gui, statusUptime, uptimeText);
-    if (statusHeap) gslc_ElemSetTxtStr(&gui, statusHeap, heapText);
-    if (statusPsram) gslc_ElemSetTxtStr(&gui, statusPsram, psramText);
+    if (statusUptime) gslc_ElemSetTxtStr(&gui, statusUptime, nextUptime);
+    if (statusHeap) gslc_ElemSetTxtStr(&gui, statusHeap, nextHeap);
+    if (statusPsram) gslc_ElemSetTxtStr(&gui, statusPsram, nextPsram);
 }
 
 bool buildGui() {
@@ -158,6 +166,13 @@ bool buildGui() {
             statusPsram = addText(page, {12, 142, 294, 20},
                                   psramText, sizeof(psramText));
             if (!statusUptime || !statusHeap || !statusPsram) return false;
+            // Opaque black backgrounds clear old digits on incremental
+            // redraw (e.g. switching from 999 s to 1000 s).
+            for (auto* ref : {statusUptime, statusHeap, statusPsram}) {
+                gslc_ElemSetCol(&gui, ref, GSLC_COL_BLACK,
+                                GSLC_COL_BLACK, GSLC_COL_BLACK);
+                gslc_ElemSetFillEn(&gui, ref, true);
+            }
         } else {
             if (!addText(page, {12, 112, 294, 32},
                          (char*)"Nur Anzeige / keine Befehle")) return false;
