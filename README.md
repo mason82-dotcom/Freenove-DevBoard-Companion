@@ -1,5 +1,7 @@
 # Freenove-DevBoard-Companion
 
+> **LVGL-9.6-Migrationsbranch – noch nicht hardwarevalidiert.** Dieser Entwicklungsstand aktualisiert LVGL von 8.3.11 auf 9.6.0 und pioarduino von 55.03.32 auf 55.03.39, während TFT_eSPI 2.5.43 und das feste Freenove-CFG1-Profil unverändert bleiben. Der nachfolgende README-Verlauf beschreibt überwiegend den früheren LVGL-8-Entwicklungsstand. Für die aktuellen Build- und Prüfanweisungen siehe [docs/DEPENDENCY-MIGRATION-LVGL9.md](docs/DEPENDENCY-MIGRATION-LVGL9.md).
+
 Modularer Companion Hub für das **Freenove FNK0086 (ESP32-S3, 8 MB Flash und 8 MB PSRAM)**.
 
 **Einzig erlaubtes Displayprofil:** `FNK0086A_2P8_CFG1_240x320_ST7789`. CFG2, automatische Profilauswahl und Display-Fallbacks sind ausdrücklich ausgeschlossen.
