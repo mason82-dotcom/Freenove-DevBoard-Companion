@@ -45,6 +45,26 @@ class GUIsliceLovyanPrototypeTests(unittest.TestCase):
                      "TFT_DC != 0", "setPanel(&panel_)"):
             self.assertIn(text, self.device)
 
+    def test_real_verified_cfg1_without_tft_dimension_macros(self):
+        # SHA256-identical headers in the user's LVGL and GUIslice worktrees
+        # contain ST7789_DRIVER and the known GPIOs, but do NOT define
+        # TFT_WIDTH / TFT_HEIGHT. They must remain optional, with validation
+        # if an explicit dimension is supplied by a different header.
+        self.assertIn("#ifndef ST7789_DRIVER", self.device)
+        self.assertIn("#if defined(TFT_WIDTH) && TFT_WIDTH != 240", self.device)
+        self.assertIn("#if defined(TFT_HEIGHT) && TFT_HEIGHT != 320", self.device)
+        self.assertNotIn("!defined(TFT_WIDTH)", self.device)
+        self.assertNotIn("!defined(TFT_HEIGHT)", self.device)
+        self.assertIn("panelCfg.panel_width = 240;", self.device)
+        self.assertIn("panelCfg.panel_height = 320;", self.device)
+
+        workflow = (ROOT / ".github" / "workflows" /
+                    "guislice-lovyangfx.yml").read_text(encoding="utf-8")
+        self.assertIn("#define ST7789_DRIVER", workflow)
+        self.assertNotIn("#define TFT_WIDTH", workflow)
+        self.assertNotIn("#define TFT_HEIGHT", workflow)
+        self.assertIn("#define SPI_FREQUENCY 80000000", workflow)
+
     def test_touch_is_single_mapped_source(self):
         self.assertRegex(self.cfg, r"(?m)^\s*#define DRV_TOUCH_HANDLER\b")
         self.assertNotRegex(self.cfg, r"(?m)^\s*#define DRV_TOUCH_NONE\b")
