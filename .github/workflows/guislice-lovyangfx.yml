@@ -1,0 +1,41 @@
+name: GUIslice LovyanGFX experimental compile
+
+on:
+  push:
+    branches:
+      - experiment/guislice-lovyangfx
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  platformio-compile-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run host regression tests
+        run: python3 -m unittest discover -s tests -v
+      - name: Install PlatformIO
+        run: python3 -m pip install --disable-pip-version-check platformio
+      - name: Provide CI-only compile fixture (never use for hardware flashing)
+        shell: bash
+        run: |
+          cat > include/VerifiedDisplaySetup.h <<'EOF'
+          // BUILD FIXTURE ONLY: approximate known CFG1 pins, NOT a hardware-verified header.
+          #define ST7789_DRIVER
+          #define TFT_WIDTH 240
+          #define TFT_HEIGHT 320
+          #define TFT_MOSI 20
+          #define TFT_SCLK 21
+          #define TFT_DC 0
+          #define TFT_CS -1
+          #define TFT_RST -1
+          #define SPI_FREQUENCY 27000000
+          EOF
+      - name: Compile GUIslice with LovyanGFX on ESP32-S3, do not upload
+        run: pio run -c platformio.guislice-lgfx.ini -e fnk0086_lgfx
