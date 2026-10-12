@@ -17,6 +17,9 @@ constexpr int kLinesPerFlush = 20;
 
 TFT_eSPI screen;
 lv_disp_draw_buf_t drawBuffer;
+// LVGL 8.3 keeps pointers to registered drivers: they must outlive begin().
+static lv_disp_drv_t displayDriver;
+static lv_indev_drv_t inputDriver;
 lv_color_t drawPixels[kWidth * kLinesPerFlush];
 lv_obj_t* statusLabel = nullptr;
 uint32_t lastTick = 0;
@@ -206,7 +209,6 @@ bool begin(bool touchPresent) {
 
     lv_init();
     lv_disp_draw_buf_init(&drawBuffer, drawPixels, nullptr, kWidth * kLinesPerFlush);
-    lv_disp_drv_t displayDriver;
     lv_disp_drv_init(&displayDriver);
     displayDriver.hor_res = kWidth;
     displayDriver.ver_res = kHeight;
@@ -217,7 +219,6 @@ bool begin(bool touchPresent) {
         return false;
     }
 
-    lv_indev_drv_t inputDriver;
     lv_indev_drv_init(&inputDriver);
     inputDriver.type = LV_INDEV_TYPE_POINTER;
     inputDriver.read_cb = readPointer;
@@ -226,6 +227,9 @@ bool begin(bool touchPresent) {
         return false;
     }
 
+    Serial.printf("LVGL driver storage: disp=%p indev=%p\n",
+                  static_cast<void*>(&displayDriver),
+                  static_cast<void*>(&inputDriver));
     lastTick = millis();
     lastSystemRefresh = lastTick;
     shownPage = 0;
