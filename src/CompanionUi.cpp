@@ -7,8 +7,8 @@
 #include "CompanionUi.h"
 #include "TouchTransform.h"
 
-static_assert(LVGL_VERSION_MAJOR == 8 && LVGL_VERSION_MINOR == 3,
-              "This shell requires LVGL 8.3.x");
+static_assert(LVGL_VERSION_MAJOR == 9 && LVGL_VERSION_MINOR == 6,
+              "This shell requires LVGL 9.6.x");
 
 namespace {
 constexpr int kWidth = 320;
@@ -16,11 +16,11 @@ constexpr int kHeight = 240;
 constexpr int kLinesPerFlush = 20;
 
 TFT_eSPI screen;
-lv_disp_draw_buf_t drawBuffer;
-// LVGL 8.3 keeps pointers to registered drivers: they must outlive begin().
-static lv_disp_drv_t displayDriver;
-static lv_indev_drv_t inputDriver;
-lv_color_t drawPixels[kWidth * kLinesPerFlush];
+// LVGL 9 owns the display and pointer objects after creation.
+static lv_display_t* lvDisplay = nullptr;
+static lv_indev_t* lvPointer = nullptr;
+// Partial RGB565 renderer: always in internal RAM and 4-byte aligned.
+alignas(4) static uint8_t drawPixels[kWidth * kLinesPerFlush * 2];
 lv_obj_t* statusLabel = nullptr;
 uint32_t lastTick = 0;
 uint32_t lastSystemRefresh = 0;
@@ -38,7 +38,7 @@ lv_color_t color(uint32_t rgb) {
     return lv_color_hex(rgb);
 }
 
-void flushDisplay(lv_disp_drv_t* drv, const lv_area_t* area, lv_color_t* colors) {
+void flushDisplay(lv_display_t* disp, const lv_area_t* area, uint8_t* colors) {
     ++diagFlushCount;
     if (diagFlushCount <= 3) {
         Serial.printf("DIAG FLUSH #%lu stage=%u area=%d,%d..%d,%d\n",
@@ -48,15 +48,15 @@ void flushDisplay(lv_disp_drv_t* drv, const lv_area_t* area, lv_color_t* colors)
     }
     // Stage 1 exercises LVGL's drawing pipeline without touching the TFT SPI bus.
     if (diagStage != 2) {
-        lv_disp_flush_ready(drv);
+        lv_display_flush_ready(disp);
         return;
     }
     if (area->x2 < 0 || area->y2 < 0 ||
         area->x1 >= kWidth || area->y1 >= kHeight) {
-        lv_disp_flush_ready(drv);
+        lv_display_flush_ready(disp);
         return;
     }
-    // LVGL 8.3 supplies RGB565 because include/lv_conf.h sets LV_COLOR_DEPTH=16.
+    // LVGL 9.6 supplies RGB565 because the display color format is explicitly set.
     const uint32_t w = static_cast<uint32_t>(area->x2 - area->x1 + 1);
     const uint32_t h = static_cast<uint32_t>(area->y2 - area->y1 + 1);
     if (diagFlushCount == 1) {
@@ -69,19 +69,19 @@ void flushDisplay(lv_disp_drv_t* drv, const lv_area_t* area, lv_color_t* colors)
     screen.pushColors(reinterpret_cast<uint16_t*>(colors), w * h, true);
     screen.endWrite();
     if (diagFlushCount == 1) Serial.println("DIAG SPI EXIT");
-    lv_disp_flush_ready(drv);
+    lv_display_flush_ready(disp);
 }
 
-void readPointer(lv_indev_drv_t*, lv_indev_data_t* data) {
+void readPointer(lv_indev_t*, lv_indev_data_t* data) {
     uint16_t x = 0, y = 0;
     if (diagStage != 2 || !touchEnabled || !BoardTouch::readRaw(x, y)) {
-        data->state = LV_INDEV_STATE_REL;
+        data->state = LV_INDEV_STATE_RELEASED;
         return;
     }
     const auto mapped = TouchTransform::rawToLandscape(x, y);
     data->point.x = mapped.x;
     data->point.y = mapped.y;
-    data->state = LV_INDEV_STATE_PR;
+    data->state = LV_INDEV_STATE_PRESSED;
 }
 
 lv_obj_t* newLabel(lv_obj_t* parent, const char* text,
@@ -94,10 +94,10 @@ lv_obj_t* newLabel(lv_obj_t* parent, const char* text,
 }
 
 void makeScreenBlank() {
-    lv_obj_t* root = lv_scr_act();
+    lv_obj_t* root = lv_screen_active();
     // Only invoked outside LVGL event callbacks, after lv_timer_handler returns.
     lv_obj_clean(root);
-    lv_obj_clear_flag(root, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_remove_flag(root, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_pad_all(root, 0, 0);
     lv_obj_set_style_border_width(root, 0, 0);
     lv_obj_set_style_bg_color(root, color(0x0B1220), 0);
@@ -118,7 +118,7 @@ void onBackClicked(lv_event_t*) {
 
 lv_obj_t* makeButton(lv_obj_t* parent, int x, int y, int w, int h,
                      const char* title, uint32_t background) {
-    lv_obj_t* button = lv_btn_create(parent);
+    lv_obj_t* button = lv_button_create(parent);
     lv_obj_set_pos(button, x, y);
     lv_obj_set_size(button, w, h);
     lv_obj_set_style_bg_color(button, color(background), 0);
@@ -137,7 +137,7 @@ lv_obj_t* makeButton(lv_obj_t* parent, int x, int y, int w, int h,
 
 void showHome() {
     makeScreenBlank();
-    lv_obj_t* root = lv_scr_act();
+    lv_obj_t* root = lv_screen_active();
 
     newLabel(root, "FREENOVE COMPANION", 10, 10, 0xE9F3FF);
     newLabel(root, "CFG1", 274, 10, 0x80D4FF);
@@ -167,7 +167,7 @@ void updateSystemDetails() {
 
 void showModule(uint8_t page) {
     makeScreenBlank();
-    lv_obj_t* root = lv_scr_act();
+    lv_obj_t* root = lv_screen_active();
     const auto& module = CompanionModules::kModules[page - 1];
     lv_obj_t* back = makeButton(root, 8, 7, 74, 28, "< Zurueck", 0x25415D);
     lv_obj_add_event_cb(back, onBackClicked, LV_EVENT_CLICKED, nullptr);
@@ -181,7 +181,7 @@ void showModule(uint8_t page) {
     lv_obj_set_style_border_color(panel, color(0x36516B), 0);
     lv_obj_set_style_border_width(panel, 1, 0);
     lv_obj_set_style_radius(panel, 8, 0);
-    lv_obj_clear_flag(panel, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_remove_flag(panel, LV_OBJ_FLAG_SCROLLABLE);
 
     newLabel(panel, module.detail, 9, 10, 0xCFDFED);
     if (module.id == CompanionModules::Id::System) {
@@ -208,28 +208,30 @@ bool begin(bool touchPresent) {
     }
 
     lv_init();
-    lv_disp_draw_buf_init(&drawBuffer, drawPixels, nullptr, kWidth * kLinesPerFlush);
-    lv_disp_drv_init(&displayDriver);
-    displayDriver.hor_res = kWidth;
-    displayDriver.ver_res = kHeight;
-    displayDriver.flush_cb = flushDisplay;
-    displayDriver.draw_buf = &drawBuffer;
-    if (lv_disp_drv_register(&displayDriver) == nullptr) {
-        Serial.println("ERROR: LVGL display registration failed");
+
+    lvDisplay = lv_display_create(kWidth, kHeight);
+    if (lvDisplay == nullptr) {
+        Serial.println("ERROR: LVGL 9 display creation failed");
         return false;
     }
+    lv_display_set_color_format(lvDisplay, LV_COLOR_FORMAT_RGB565);
+    lv_display_set_buffers(lvDisplay, drawPixels, nullptr,
+                           sizeof(drawPixels), LV_DISPLAY_RENDER_MODE_PARTIAL);
+    lv_display_set_flush_cb(lvDisplay, flushDisplay);
 
-    lv_indev_drv_init(&inputDriver);
-    inputDriver.type = LV_INDEV_TYPE_POINTER;
-    inputDriver.read_cb = readPointer;
-    if (lv_indev_drv_register(&inputDriver) == nullptr) {
-        Serial.println("ERROR: LVGL input registration failed");
+    lvPointer = lv_indev_create();
+    if (lvPointer == nullptr) {
+        Serial.println("ERROR: LVGL 9 input creation failed");
         return false;
     }
+    lv_indev_set_type(lvPointer, LV_INDEV_TYPE_POINTER);
+    lv_indev_set_read_cb(lvPointer, readPointer);
+    lv_indev_set_display(lvPointer, lvDisplay);
 
-    Serial.printf("LVGL driver storage: disp=%p indev=%p\n",
-                  static_cast<void*>(&displayDriver),
-                  static_cast<void*>(&inputDriver));
+    Serial.printf("LVGL 9 display=%p indev=%p RGB565 buffer=%u bytes\n",
+                  static_cast<void*>(lvDisplay),
+                  static_cast<void*>(lvPointer),
+                  static_cast<unsigned>(sizeof(drawPixels)));
     lastTick = millis();
     lastSystemRefresh = lastTick;
     shownPage = 0;
@@ -257,7 +259,7 @@ void setDiagnosticStage(uint8_t stage) {
                                "LVGL render; TFT SPI enabled");
     // A previous stage may have acknowledged flushes without actual TFT writes.
     // Force a complete repaint at stage 2 to make these writes observable.
-    if (stage != 0) lv_obj_invalidate(lv_scr_act());
+    if (stage != 0) lv_obj_invalidate(lv_screen_active());
 }
 
 uint8_t diagnosticStage() {
