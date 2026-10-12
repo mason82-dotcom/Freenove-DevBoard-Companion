@@ -35,6 +35,20 @@ The initial LVGL 8.3 `InstructionFetchError` and corrupted backtrace did not rec
 
 The user supplied a real FNK0086 photograph showing all six module tiles (Hermes, Webradio, OBD2, Drohne, System, Kamera), readable typography and footer. No obvious rendering artifacts. The photographed board is upright while the GUI uses the intended landscape layout. The user confirms navigation works without problems. No source image was copied into the repository. A ten-minute stability run is still pending.
 
+## Extended stage-2 navigation/uptime log — partial soak PASS (2026-10-12)
+
+The user supplied additional live UART logs extending through **uptime 270102 ms** (~4 min 30 s since boot). Stage 2 was activated at approximately 40000 ms; the **verified stage-2 duration is therefore approximately 230 s (3 min 50 s), not yet 10 minutes**.
+
+Every sampled heartbeat from 204062–270102 ms reports:
+- `stage=2`
+- `heap=266000` bytes free (unchanged)
+- `psram=8383524` bytes free (unchanged)
+- `loop_stack_hwm=3672` (unchanged across supplied interval; 48 below earlier 3720-byte observed minimum)
+
+The operator's UART log confirms navigation events with back transitions: `UI NAV: System`, `Home`, `Kamera`, `Home`, `Drohne`, `Home`, `Webradio`, `Home`, and later `System`. No panic, reset or progressive loss of free heap/PSRAM is present in the supplied interval. The trace does not separately show Hermes and OBD2 navigation.
+
+**Status: extended short soak successful, 10-minute stage-2 criterion still open.** With stage 2 starting near uptime 40 seconds, continue to approximately `uptime >= 640000 ms` while keeping stage 2 active to obtain ten full minutes after enabling the display. No reflash is needed merely to complete the test.
+
 ## Versions
 
 | Component | Previous | Proposed pinned version |
@@ -90,7 +104,7 @@ If the original verified CFG1 header is not available, do not substitute CFG2; s
 2. Actual `pio run -e fnk0086` on Pi reports SUCCESS with no linker errors (**passed 2026-10-12**).
 3. Stages 0, 1 and 2 stable and LVGL flush reaches `DIAG SPI EXIT` (**passed in the short staged hardware test**); all six tiles now **visually confirmed by user photo**.
 4. Touch navigation works (**confirmed by user**); explicit per-tile serial checks are optional.
-5. Ten-minute serial test with stable heap/PSRAM and no Guru Meditation Error.
+5. Ten-minute serial test with stable heap/PSRAM and no Guru Meditation Error (**partial pass up to uptime 270102 ms; target approximately uptime >= 640000 ms for 10 minutes at stage 2**).
 
 No merge to `main` until both the LVGL9 build and real-device validation succeed.
 
