@@ -1,0 +1,220 @@
+// Slint 1.18.1 design-only prototype. No ESP32 display or touch driver is
+// compiled here; C++ desktop preview and FNK0086 backend are separate tasks.
+// SPDX-License-Identifier: MIT
+
+component ModuleTile inherits Rectangle {
+    in property <string> label;
+    in property <int> destination;
+    callback activated(int);
+
+    width: 96px;
+    height: 70px;
+    background: #1a304b;
+    border-color: #36516b;
+    border-width: 1px;
+    border-radius: 8px;
+
+    Text {
+        text: root.label;
+        width: parent.width;
+        height: parent.height;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        color: #f2f6ff;
+        font-size: 14px;
+    }
+    TouchArea {
+        clicked => { root.activated(root.destination); }
+    }
+}
+
+export component CompanionWindow inherits Window {
+    width: 320px;
+    height: 240px;
+    title: "Freenove Companion – Slint proof of concept";
+    background: #0b1220;
+
+    // The standalone desktop preview shows demonstration values only.
+    // On FNK0086 these must be updated from a read-only native adapter.
+    in-out property <int> page: 0;
+    in property <int> uptime-seconds: 0;
+    in property <int> heap-free-bytes: 266000;
+    in property <int> psram-free-bytes: 8383524;
+
+    Text {
+        x: 10px;
+        y: 8px;
+        width: 260px;
+        height: 23px;
+        text: "FREENOVE COMPANION";
+        color: #e9f3ff;
+        font-size: 17px;
+        font-weight: 600;
+    }
+
+    Text {
+        x: 272px;
+        y: 11px;
+        width: 45px;
+        height: 18px;
+        text: "CFG1";
+        color: #80d4ff;
+        font-size: 13px;
+        horizontal-alignment: right;
+    }
+
+    if root.page == 0 : Rectangle {
+        x: 0px;
+        y: 34px;
+        width: 320px;
+        height: 206px;
+        background: transparent;
+
+        ModuleTile {
+            x: 8px;
+            y: 8px;
+            label: "Hermes";
+            destination: 1;
+            activated(page) => { root.page = page; }
+        }
+        ModuleTile {
+            x: 112px;
+            y: 8px;
+            label: "Webradio";
+            destination: 2;
+            activated(page) => { root.page = page; }
+        }
+        ModuleTile {
+            x: 216px;
+            y: 8px;
+            label: "OBD2";
+            destination: 3;
+            activated(page) => { root.page = page; }
+        }
+        ModuleTile {
+            x: 8px;
+            y: 87px;
+            label: "Drohne";
+            destination: 4;
+            activated(page) => { root.page = page; }
+        }
+        ModuleTile {
+            x: 112px;
+            y: 87px;
+            label: "System";
+            destination: 5;
+            activated(page) => { root.page = page; }
+        }
+        ModuleTile {
+            x: 216px;
+            y: 87px;
+            label: "Kamera";
+            destination: 6;
+            activated(page) => { root.page = page; }
+        }
+
+        Text {
+            x: 9px;
+            y: 181px;
+            width: 110px;
+            height: 20px;
+            text: "Touch: Adapter offen";
+            font-size: 11px;
+            color: #80d8b0;
+        }
+        Text {
+            x: 218px;
+            y: 181px;
+            width: 96px;
+            height: 20px;
+            text: "Nur Anzeige";
+            font-size: 11px;
+            color: #92a8c0;
+            horizontal-alignment: right;
+        }
+    }
+
+    if root.page != 0 : Rectangle {
+        x: 0px;
+        y: 34px;
+        width: 320px;
+        height: 206px;
+        background: transparent;
+
+        Rectangle {
+            x: 8px;
+            y: 2px;
+            width: 80px;
+            height: 30px;
+            background: #25415d;
+            border-radius: 7px;
+
+            Text {
+                text: "< Zurueck";
+                width: parent.width;
+                height: parent.height;
+                color: #f2f6ff;
+                font-size: 12px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            TouchArea {
+                clicked => { root.page = 0; }
+            }
+        }
+        Text {
+            x: 94px;
+            y: 3px;
+            height: 27px;
+            width: 212px;
+            color: #f1f6ff;
+            font-size: 16px;
+            text: root.page == 1 ? "Hermes"
+                : root.page == 2 ? "Webradio"
+                : root.page == 3 ? "OBD2"
+                : root.page == 4 ? "Drohne"
+                : root.page == 5 ? "System" : "Kamera";
+        }
+        Rectangle {
+            x: 10px;
+            y: 38px;
+            width: 300px;
+            height: 144px;
+            background: #14283d;
+            border-color: #36516b;
+            border-width: 1px;
+            border-radius: 8px;
+
+            if root.page == 5 : Text {
+                x: 10px;
+                y: 12px;
+                width: 280px;
+                height: 120px;
+                color: #81ddbc;
+                font-size: 13px;
+                text: "ESP32 System (Demo)\nUptime: " + root.uptime-seconds
+                    + " s\nHeap frei: " + root.heap-free-bytes
+                    + " B\nPSRAM frei: " + root.psram-free-bytes + " B";
+            }
+            if root.page != 5 : Text {
+                x: 10px;
+                y: 12px;
+                width: 280px;
+                height: 105px;
+                color: #cfdfed;
+                font-size: 13px;
+                text: "Status: noch nicht verbunden\n\n"
+                    + "Keine Verbindungen oder Steuerbefehle.";
+            }
+        }
+        Text {
+            x: 10px;
+            y: 187px;
+            width: 300px;
+            height: 16px;
+            text: "Nur lokale Anzeige | CFG1 320x240";
+            color: #8ea8c1;
+            font-size: 11px;
+        }
+    }
+}
