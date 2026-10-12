@@ -70,3 +70,39 @@ Wait for 2–3 `DIAG heartbeat` messages in stage 0. Enter `1`, wait ~20 seconds
 The serial heartbeat logs `loop_stack_hwm`, the Arduino loop task's remaining stack high-watermark, and heap/PSRAM. Zero or persistently very low stack reserve supports investigating stack size; it does not independently prove a buffer overflow.
 
 The known-good **5/5** FNK0086 touch firmware remains in `~/Projekte/Freenove-DevBoard-Companion-touch-test` and may be restored after verifying the board port. CFG1 is unchanged in every stage. No network, vehicle, drone or camera commands are executed.
+
+## Follow-up: Stage 0 stable, stage 1 immediately panics (2026-10-12)
+
+The operator ran the three-stage diagnostic firmware on the FNK0086. **Stage 0** produced continuous heartbeats for at least 56 seconds, with stable `heap=266016`, `psram=8382844`, and `loop_stack_hwm=6332`.
+
+Immediately after serial command `1`, the firmware printed `DIAG STAGE 1: LVGL render; TFT SPI bypassed`, then panicked on core 1:
+
+```text
+Guru Meditation Error: Core 1 panic'ed (InstructionFetchError)
+PC      : 0x3fcec070
+EXCVADDR: 0x3fcec070
+A0      : 0x8201e85d
+A8      : 0x8200c35c
+LBEG    : 0x4200c33d
+LEND    : 0x4200c34e
+Backtrace: 0x3fcec06d:0x3fcebf90 |<-CORRUPTED
+ELF file SHA256: 5e6a3b605
+```
+
+**No `DIAG FLUSH` message appeared before the panic**, so the TFT SPI transfer function did not run during this reproduction. The PC/EXCVADDR point into a RAM/stack address range, suggesting an invalid branch/function pointer or stack/memory corruption; exact cause is still unproven. Do **not** enter stage 2 yet or modify the fixed CFG1 display setup.
+
+### Next evidence: decode *this* firmware's caller and loop addresses before rebuilding
+
+With the currently existing `.pio/build/fnk0086/firmware.elf` file in the Pi GUI worktree (must have SHA256 prefix `5e6a3b605`), execute:
+
+```bash
+cd ~/Projekte/Freenove-DevBoard-Companion-lvgl-test
+sha256sum .pio/build/fnk0086/firmware.elf
+bash /tmp/companion-decode-panic.sh \
+  0x4201e85d 0x4200c35c 0x4200c33d 0x4200c34e 0x3fcec070
+```
+
+In an Xtensa backtrace `A0` and `A8` high-bit-coded code addresses can be mapped to their `0x420...` equivalents. The `0x3f...` invalid PC is not expected to resolve to a valid application text symbol. The address decode may identify the caller, without being sufficient on its own to prove why the branch target was corrupted.
+
+**Do not run `pio run` before collecting these symbols:** a re-link changes addresses and invalidates a match to the crash ELF.
+
