@@ -55,6 +55,20 @@ class CompanionShellTests(unittest.TestCase):
         self.assertNotIn("LV_VERSION_MAJOR", source)
         self.assertNotIn("LV_VERSION_MINOR", source)
 
+    def test_diagnostic_stages_pause_lvgl_and_bypass_spi(self):
+        main = (ROOT / "src" / "main.cpp").read_text(encoding="utf-8")
+        gui = (ROOT / "src" / "CompanionUi.cpp").read_text(encoding="utf-8")
+        header = (ROOT / "include" / "CompanionUi.h").read_text(encoding="utf-8")
+        for expected in ("diagStage = 0", "diagStage == 0",
+                         "diagStage != 2", "lv_disp_flush_ready(drv)",
+                         "DIAG SPI ENTER", "DIAG SPI EXIT"):
+            with self.subTest(symbol=expected):
+                self.assertIn(expected, gui)
+        self.assertIn("void setDiagnosticStage(uint8_t stage)", header)
+        self.assertIn("CompanionUi::setDiagnosticStage(", main)
+        self.assertIn("uxTaskGetStackHighWaterMark(", main)
+        self.assertIn("Serial.available()", main)
+
     def test_no_transport_or_control_in_shell(self):
         source = "\n".join(
             (ROOT / "src" / part).read_text(encoding="utf-8")
