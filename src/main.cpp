@@ -5,8 +5,9 @@
 #include "BoardTouch.h"
 #include "CompanionUi.h"
 
-// v0.2.0 crash triage: safely halt LVGL before the first timer/flush.
-// Commands on USB serial: 0=pause, 1=LVGL without TFT SPI, 2=LVGL with TFT SPI.
+// LVGL 9 boots directly into the validated 320x240 GUI.
+// Rebuild with -DCOMPANION_DIAGNOSTIC_BOOT=1 for paused staged startup.
+// Serial commands 0=pause, 1=LVGL without TFT SPI, 2=normal LVGL/SPI.
 // No persistent settings, internet, OBD, drone, or camera actions.
 namespace {
 uint32_t lastHeartbeatMs = 0;
@@ -17,7 +18,7 @@ void setup() {
     Serial.begin(115200);
     delay(250);
     Serial.println();
-    Serial.println("Freenove-DevBoard-Companion v0.2.0 / LVGL DIAGNOSTIC");
+    Serial.println("Freenove-DevBoard-Companion v0.2.0 / LVGL 9.6.0");
 
     const bool touchDetected = BoardTouch::begin();
     Serial.printf("FT6336U probe: %s\n", touchDetected ? "FOUND" : "MISSING");
@@ -28,9 +29,11 @@ void setup() {
     if (!uiReady) {
         Serial.println("FATAL: LVGL shell could not initialize");
     } else {
-        Serial.println("DIAG BOOT: stage 0, LVGL paused");
-        Serial.println("DIAG COMMANDS: 0=pause, 1=LVGL/no SPI, 2=LVGL/SPI");
-        Serial.println("Send 1, observe stability; only then send 2.");
+        Serial.printf("UI BOOT: stage %u (%s)\n",
+                      static_cast<unsigned>(CompanionUi::diagnosticStage()),
+                      CompanionUi::diagnosticStage() == 2
+                          ? "normal LVGL/TFT operation" : "diagnostic pause");
+        Serial.println("Optional diagnostics: 0=pause, 1=LVGL/no SPI, 2=LVGL/SPI");
     }
 }
 
