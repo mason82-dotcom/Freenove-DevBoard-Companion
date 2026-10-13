@@ -82,6 +82,51 @@ pio run -c platformio.guislice-lgfx.ini -e fnk0086_lgfx
 
 Only after both builds pass and the user explicitly decides to do the first *new* hardware test, check `pio device list` and use PlatformIO's normal upload method. Do not use `firmware.factory.bin` or merge this experiment into `main`.
 
+## Hermes live HTTPS status (stacked PR #6, opt-in; no flash)
+
+This increment extends the existing 6-module branch without changing FNK0086 touch/display or the five other module backends. The **default build remains fully offline**. Only a local ignored `HermesDeviceConfig.h` that explicitly sets `HERMES_LIVE_ENABLED 1` enables a dedicated FreeRTOS worker; it never runs TLS/HTTP inside GUIslice. The source of truth is the existing **OpenNextion Hermes Touch** read-only Pi service `https://<Pi LAN IPv4>:8766/v1/status` (GET-only).
+
+**Security:** the ESP32 always verifies the locally trusted CA and the Pi IP/hostname, checks NTP time before TLS, forbids HTTP/plaintext fallback and redirects, and sends only the dedicated **Hermes Touch device token**, never the Hermes-Agent API token. Invalid TLS/configuration, HTTP, JSON, probe freshness or expired local samples are clearly labeled instead of displaying stale green/healthy values. Credentials never enter Git or CI logs. The worker performs a 5-second status poll and GUI reads a short zero-wait mutex snapshot. No Hermes commands, chat requests or action endpoints are present.
+
+### Raspberry Pi isolated test and opt-in
+
+Use an **additional** worktree: leave PR #5 and the working uploaded firmware alone.
+
+```bash
+cd ~/Projekte/Freenove-DevBoard-Companion
+git fetch origin feature/guislice-hermes-https-status
+git worktree add --detach ../Freenove-DevBoard-Companion-hermes-tls \
+  origin/feature/guislice-hermes-https-status
+
+cp ~/Projekte/Freenove-DevBoard-Companion-lvgl9-test/include/VerifiedDisplaySetup.h \
+  ../Freenove-DevBoard-Companion-hermes-tls/include/
+cd ../Freenove-DevBoard-Companion-hermes-tls
+
+# First build MUST be default-off, without copying any secrets:
+python3 -m unittest discover -s tests -v
+pio run -c platformio.guislice-lgfx.ini -e fnk0086_lgfx
+
+# The existing Pi Bridge + TLS service is a prerequisite:
+cd ~/Projekte/OpenNextion_Hermes_Dashboard
+bash scripts/pi/tls-smoke.sh
+# Expected: "TLS verified against locally generated CA: YES",
+# and recent Hermes probe cache; no token value is printed.
+
+cd ~/Projekte/Freenove-DevBoard-Companion-hermes-tls
+# Opt in ONLY after the previous test passes:
+python3 prototypes/guislice-lovyangfx/scripts/provision_hermes_from_pi.py
+# Copies only the already-working private OpenNextion Config.h and LocalCa.h
+# into gitignored, 0600 files, with explicit HERMES_LIVE_ENABLED=1.
+git status --short
+pio run -c platformio.guislice-lgfx.ini -e fnk0086_lgfx
+```
+
+The private build embeds your WLAN credentials, device token and public CA certificate in **firmware flash**. Keep the firmware build files private and prevent anyone from reading the installed module's flash. Do **not** post `HermesDeviceConfig.h`, its full compiler `-dM` macro dump, `HermesLocalCa.h`, or any certificate key. The provisioning script refuses to overwrite either private file.
+
+**Before an actual first Hermes build upload**, verify Wi-Fi reachability of the Pi IP and compare the local `tls-smoke.sh` result, then manually verify the device port. Keep the previously tested PR #5 image available for rollback. **Never flash CI images**: they use fake credentials and an intentionally invalid CA. The CI proves offline and connected compilation only; it cannot establish network connectivity on this user's ESP32.
+
+Expected Hermes live page examples: `TLS: OK | Alter: 2 s`, `API: OK | Dash: OK`, `Gateway: AN | Probe: frisch`, `Pi: 51.8C 62.2% L0.68`. Errors or stale data display explicit fault messages. The other five pages keep their read-only state.
+
 ## Raspberry Pi build, without disturbing the working LVGL project
 
 Use a completely new Git worktree; do not perform a force reset and do not overwrite the original Pi checkout:
