@@ -154,9 +154,9 @@ class GUIsliceLovyanPrototypeTests(unittest.TestCase):
     def test_heart_icon_bounds_and_reduced_refresh(self):
         graphics = (PROTO / "src" / "ModuleGraphics.cpp").read_text()
         self.assertIn("const int16_t cx = r.x + 35;", graphics)
-        self.assertIn("const int16_t top = r.y + 15;", graphics)
+        self.assertIn("const int16_t heartTop = r.y + 15;", graphics)
         self.assertIn("static const uint8_t halfWidths[]", graphics)
-        self.assertIn("cx - hw, top + y, cx + hw, top + y", graphics)
+        self.assertIn("cx - hw, heartTop + y, cx + hw, heartTop + y", graphics)
         self.assertNotIn("dot(g,r.x+26,cy-6,9", graphics)
         self.assertIn("now - lastPulseCanvasMs >= 250", self.main)
 
