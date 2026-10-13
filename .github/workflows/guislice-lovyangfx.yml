@@ -5,6 +5,7 @@ on:
     branches:
       - experiment/guislice-lovyangfx
       - feature/guislice-six-modules
+      - feature/guislice-pulsox-max30102
   workflow_dispatch:
   pull_request:
     branches:
