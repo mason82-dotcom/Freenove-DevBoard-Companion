@@ -6,6 +6,7 @@
 #include "CompanionModules.h"
 #include "CompanionUi.h"
 #include "HermesStatus.h"
+#include "Obd2Status.h"
 #include "PulsOxSensor.h"
 #include "TouchTransform.h"
 
@@ -41,6 +42,8 @@ lv_chart_series_t* pulsOxSeries = nullptr;
 uint32_t lastPulsOxWave = 0;
 lv_obj_t* hermesLabel = nullptr;
 uint32_t lastHermesRefresh = 0;
+lv_obj_t* obd2Label = nullptr;
+uint32_t lastObd2Refresh = 0;
 // IR trace: 100 samples at 25 Hz = 4 s; LVGL reads this array directly.
 constexpr uint16_t kWavePoints = 100;
 static lv_coord_t wavePoints[kWavePoints];
@@ -132,6 +135,7 @@ void makeScreenBlank() {
     pulsOxChart = nullptr;
     pulsOxSeries = nullptr;
     hermesLabel = nullptr;
+    obd2Label = nullptr;
 }
 
 void onTileClicked(lv_event_t* event) {
@@ -211,6 +215,13 @@ void updateHermesDetails() {
     lv_label_set_text(hermesLabel, text);
 }
 
+void updateObd2Details() {
+    if (!obd2Label || !showing(CompanionModules::Id::Obd2)) return;
+    char text[256];
+    Obd2Status::format(Obd2Status::read(), millis(), text, sizeof(text));
+    lv_label_set_text(obd2Label, text);
+}
+
 void updatePulsOxWave() {
     if (!pulsOxChart || !pulsOxSeries) return;
     const auto sample = PulsOx::read();
@@ -250,7 +261,8 @@ void showModule(uint8_t page) {
     // Hermes has live connection state; do not show its static placeholder status.
     // PulsOx needs the full panel height: its first row is the live sensor state.
     // Panel content area (theme padding 10 px): about 278 x 122 px.
-    if (module.id != CompanionModules::Id::PulsOx) {
+    if (module.id != CompanionModules::Id::PulsOx &&
+        module.id != CompanionModules::Id::Obd2) {
         newLabel(panel, module.id == CompanionModules::Id::Hermes
                             ? "Hermes Live-Status" : module.detail,
                  9, 10, 0xCFDFED);
@@ -258,6 +270,10 @@ void showModule(uint8_t page) {
     if (module.id == CompanionModules::Id::Hermes) {
         hermesLabel = newLabel(panel, "Hermes wird abgefragt ...", 9, 35, 0x81DDBC);
         updateHermesDetails();
+    } else if (module.id == CompanionModules::Id::Obd2) {
+        obd2Label = newLabel(panel, "ELM327 wird verbunden ...", 9, 0, 0x81DDBC);
+        updateObd2Details();
+        newLabel(panel, "Nur Lesen: Mode 01 | keine Fehlercodes", 9, 104, 0x91A8C1);
     } else if (module.id == CompanionModules::Id::System) {
         statusLabel = newLabel(panel, "", 9, 42, 0x81DDBC);
         updateSystemDetails();
@@ -330,6 +346,7 @@ bool begin(bool touchPresent) {
                   static_cast<void*>(pointer),
                   static_cast<unsigned>(sizeof(drawPixels)));
     HermesStatus::begin();
+    Obd2Status::begin();
     lastTick = millis();
     lastSystemRefresh = lastTick;
     shownPage = 0;
@@ -376,6 +393,7 @@ void poll() {
 
     if (requestedPage != shownPage) {
         if (showing(CompanionModules::Id::PulsOx)) PulsOx::requestActive(false);
+        if (showing(CompanionModules::Id::Obd2)) Obd2Status::requestActive(false);
         shownPage = requestedPage;
         if (shownPage == 0) {
             Serial.println("UI NAV: Home");
@@ -385,6 +403,7 @@ void poll() {
                           CompanionModules::kModules[shownPage - 1].title);
             showModule(shownPage);
             if (showing(CompanionModules::Id::PulsOx)) PulsOx::requestActive(true);
+            if (showing(CompanionModules::Id::Obd2)) Obd2Status::requestActive(true);
         }
     }
 
@@ -398,6 +417,10 @@ void poll() {
     if (showing(CompanionModules::Id::PulsOx) && now - lastPulsOxWave >= 200) {
         lastPulsOxWave = now;
         updatePulsOxWave();
+    }
+    if (showing(CompanionModules::Id::Obd2) && now - lastObd2Refresh >= 500) {
+        lastObd2Refresh = now;
+        updateObd2Details();
     }
     if (showing(CompanionModules::Id::Hermes) && now - lastHermesRefresh >= 1000) {
         lastHermesRefresh = now;
