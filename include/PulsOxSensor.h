@@ -27,4 +27,10 @@ Snapshot read();
 // Copies the most recent chronological IR samples; read-only, no I2C.
 uint16_t readWave(uint16_t* destination, uint16_t capacity);
 void format(const Snapshot& sample, uint32_t nowMs, char rows[4][52]);
+// Display-only trace: subtracts a centered 1 s moving average (removes the
+// slow DC drift), inverts so systolic peaks point up and scales to 0..100.
+// A flat window (span < kMinTraceSpan) is drawn as a centered line.
+constexpr uint16_t kTraceAverage = 25;  // samples, 1 s at 25 Hz
+constexpr int32_t kMinTraceSpan = 8;
+void detrendTrace(const uint16_t* raw, uint16_t count, int16_t* out);
 }

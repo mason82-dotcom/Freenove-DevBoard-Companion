@@ -213,24 +213,19 @@ void updateHermesDetails() {
 
 void updatePulsOxWave() {
     if (!pulsOxChart || !pulsOxSeries) return;
+    const auto sample = PulsOx::read();
     uint16_t raw[kWavePoints];
-    const uint16_t n = PulsOx::readWave(raw, kWavePoints);
-    if (n < 2) {
+    // Without a detected finger the IR level is only ambient drift; never
+    // magnify it into something that looks like a pulse.
+    const uint16_t n = sample.sensorOk && sample.finger
+                           ? PulsOx::readWave(raw, kWavePoints) : 0;
+    if (n < PulsOx::kTraceAverage) {
         lv_chart_set_all_value(pulsOxChart, pulsOxSeries, LV_CHART_POINT_NONE);
         return;
     }
-    uint16_t lo = raw[0], hi = raw[0];
-    for (uint16_t i = 1; i < n; ++i) {
-        if (raw[i] < lo) lo = raw[i];
-        if (raw[i] > hi) hi = raw[i];
-    }
-    // Auto-scale the small AC component; invert so systolic peaks point up.
-    const uint32_t span = hi - lo < 8 ? 8u : static_cast<uint32_t>(hi - lo);
     const uint16_t pad = kWavePoints - n;
-    for (uint16_t i = 0; i < kWavePoints; ++i) {
-        wavePoints[i] = i < pad ? LV_CHART_POINT_NONE
-            : static_cast<lv_coord_t>((static_cast<uint32_t>(hi - raw[i - pad]) * 100u) / span);
-    }
+    for (uint16_t i = 0; i < pad; ++i) wavePoints[i] = LV_CHART_POINT_NONE;
+    PulsOx::detrendTrace(raw, n, wavePoints + pad);
     lv_chart_refresh(pulsOxChart);
 }
 

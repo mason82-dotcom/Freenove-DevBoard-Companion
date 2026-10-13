@@ -76,5 +76,29 @@ int main() {
     sample.running = false;
     PulsOx::format(sample, 10000, rows);
     check("MAX30102: nicht gestartet", noFinger, noBpm, noSpo2);
+
+    // Trace: a pure ramp (drift without finger pulse) must not fill the chart.
+    uint16_t raw[100];
+    int16_t trace[100];
+    for (uint16_t i = 0; i < 100; ++i) raw[i] = static_cast<uint16_t>(3000 + i * 5);
+    PulsOx::detrendTrace(raw, 100, trace);
+    for (uint16_t i = 13; i < 87; ++i) assert(trace[i] == 50);  // interior flat
+
+    // Pulse on top of a strong drift: valleys in IR become peaks, full scale.
+    for (uint16_t i = 0; i < 100; ++i) {
+        const bool beat = i % 25 == 12;
+        raw[i] = static_cast<uint16_t>(3000 + i * 5 - (beat ? 200 : 0));
+    }
+    PulsOx::detrendTrace(raw, 100, trace);
+    int16_t lo = 100, hi = 0;
+    for (auto v : trace) { assert(v >= 0 && v <= 100); lo = v < lo ? v : lo; hi = v > hi ? v : hi; }
+    assert(lo == 0 && hi == 100);
+    for (uint16_t i = 12; i < 100; i += 25) assert(trace[i] == 100);
+
+    // Flat or tiny input stays centered; null input is ignored.
+    for (auto& v : raw) v = 4000;
+    PulsOx::detrendTrace(raw, 100, trace);
+    for (auto v : trace) assert(v == 50);
+    PulsOx::detrendTrace(nullptr, 100, trace);
     return 0;
 }

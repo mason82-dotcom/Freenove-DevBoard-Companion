@@ -28,4 +28,28 @@ void format(const Snapshot& s, uint32_t nowMs, char rows[4][52]) {
         snprintf(rows[3], 52, "SpO2: -- %% (Demo)");
     }
 }
+
+void detrendTrace(const uint16_t* raw, uint16_t n, int16_t* out) {
+    if (!raw || !out || n == 0) return;
+    constexpr int32_t kMaxPoints = 256;
+    int32_t ac[kMaxPoints];
+    if (n > kMaxPoints) n = kMaxPoints;
+    int32_t lo = 0, hi = 0;
+    for (uint16_t i = 0; i < n; ++i) {
+        const int32_t half = kTraceAverage / 2;
+        const int32_t from = static_cast<int32_t>(i) - half < 0 ? 0 : i - half;
+        const int32_t to = static_cast<int32_t>(i) + half >= n ? n - 1 : i + half;
+        int32_t sum = 0;
+        for (int32_t k = from; k <= to; ++k) sum += raw[k];
+        const int32_t baseline = sum / (to - from + 1);
+        ac[i] = baseline - static_cast<int32_t>(raw[i]);  // inverted PPG
+        if (i == 0 || ac[i] < lo) lo = ac[i];
+        if (i == 0 || ac[i] > hi) hi = ac[i];
+    }
+    const int32_t span = hi - lo;
+    for (uint16_t i = 0; i < n; ++i) {
+        out[i] = span < kMinTraceSpan ? 50
+                 : static_cast<int16_t>(((ac[i] - lo) * 100) / span);
+    }
+}
 }

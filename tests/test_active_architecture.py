@@ -146,6 +146,8 @@ class ActiveArchitectureTests(unittest.TestCase):
         self.assertIn("pulsOxChart = nullptr", self.gui)
         self.assertIn("now - lastPulsOxWave >= 200", poll)
         self.assertNotIn("sensor.", self.gui)
+        self.assertIn("sample.sensorOk && sample.finger", self.gui)
+        self.assertIn("PulsOx::detrendTrace(raw, n, wavePoints + pad)", self.gui)
 
 
 if __name__ == "__main__":
