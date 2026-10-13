@@ -198,7 +198,7 @@ void setup() {
     // SharedI2C is established by FT6336U begin() during GUI init.
     // Sensor failure never prevents the five other pages from working.
     if (initialized) {
-        Serial.printf("PulsOx worker: %s\\n",
+        Serial.printf("PulsOx worker: %s\n",
                       PulsOx::begin() ? "STARTED" : "OFFLINE");
     }
     Serial.printf("GUI BOOT: %s, display=320x240, modules=%u\n",
