@@ -1,0 +1,30 @@
+name: LVGL8 regression and firmware build
+
+on:
+  push:
+    branches: [feature/companion-lvgl8-rebuild]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Python regression suite
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
+
+  firmware:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install PlatformIO
+        run: python -m pip install platformio
+      - name: Build FNK0086 firmware (no flash)
+        run: pio run -e fnk0086
