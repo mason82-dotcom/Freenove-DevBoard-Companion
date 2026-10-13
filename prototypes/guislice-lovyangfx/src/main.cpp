@@ -6,7 +6,7 @@
 #include <GUIslice_th.h>
 
 #include "BoardTouch.h"
-#include "CompanionModules.h"
+#include "CompanionGuiModules.h"
 #include "ModuleDiagnostics.h"
 #include "ModuleGraphics.h"
 #include "PulsOxSensor.h"
