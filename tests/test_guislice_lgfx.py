@@ -125,6 +125,48 @@ class GUIsliceLovyanPrototypeTests(unittest.TestCase):
         self.assertIn("ESP.getFreeHeap()", (backend / "SystemModule.cpp").read_text())
         self.assertIn("ESP.getFreePsram()", (backend / "SystemModule.cpp").read_text())
 
+    def test_hermes_https_is_opt_in_and_read_only(self):
+        worker = (PROTO / "src" / "HermesStatus.cpp").read_text()
+        self.assertIn('#if __has_include("HermesDeviceConfig.h")', worker)
+        self.assertIn("#define HERMES_LIVE_ENABLED 0", worker)
+        self.assertIn("#if HERMES_LIVE_ENABLED", worker)
+        self.assertIn('client.setCACert(HT_CA_CERT);', worker)
+        self.assertIn('http.GET();', worker)
+        self.assertIn('http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);',
+                      worker)
+        self.assertIn('"/v1/status"', worker)
+        self.assertIn("configTime(", worker)
+        self.assertIn("WiFiClientSecure", worker)
+        self.assertIn("xTaskCreate(task,", worker)
+        self.assertIn("xSemaphoreTake(mutex, 0)", worker)
+        self.assertIn("DeserializationOption::NestingLimit(8)", worker)
+        self.assertIn('doc["hermes"]["probe_fresh"]', worker)
+        self.assertNotIn("setInsecure(", worker)
+        self.assertNotIn("http.POST(", worker)
+        self.assertNotIn("http.PUT(", worker)
+        self.assertNotIn("http.PATCH(", worker)
+        self.assertNotIn("http.DELETE(", worker)
+        self.assertNotIn("ATZ", worker)
+        self.assertIn("HermesStatus::begin()", self.main)
+        self.assertNotIn("WiFi.begin(", self.main)
+
+    def test_hermes_secrets_stay_ignored_and_six_pages_untouched(self):
+        gitignore = (ROOT / ".gitignore").read_text()
+        for path in ("HermesDeviceConfig.h", "HermesLocalCa.h"):
+            self.assertIn(path, gitignore)
+        self.assertNotIn("HT_WIFI_PASSWORD", self.main)
+        self.assertIn("bblanchon/ArduinoJson@7.4.2",
+                      self.ini["env:fnk0086_lgfx"]["lib_deps"])
+        hermes = (PROTO / "src" / "modules" / "HermesModule.cpp").read_text()
+        self.assertIn("HermesStatus::copy(fresh)", hermes)
+        self.assertIn("HermesStatus::format(last, uptimeMs, out.text);",
+                      hermes)
+        self.assertNotIn("HTTPClient", hermes)
+        self.assertEqual(self.ini["platformio"]["src_dir"],
+                         "prototypes/guislice-lovyangfx/src")
+        self.assertIn("constexpr uint8_t kPages = 7", self.main)
+        self.assertIn("TouchTransform::rawToLandscape(rawX, rawY)", self.main)
+
     def test_touch_is_single_mapped_source(self):
         self.assertRegex(self.cfg, r"(?m)^\s*#define DRV_TOUCH_HANDLER\b")
         self.assertNotRegex(self.cfg, r"(?m)^\s*#define DRV_TOUCH_NONE\b")
