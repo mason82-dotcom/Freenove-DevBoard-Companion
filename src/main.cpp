@@ -5,7 +5,7 @@
 #include "BoardTouch.h"
 #include "CompanionUi.h"
 
-// LVGL 9 boots directly into the validated 320x240 GUI.
+// LVGL 8 boots directly into the validated 320x240 GUI.
 // Rebuild with -DCOMPANION_DIAGNOSTIC_BOOT=1 for paused staged startup.
 // Serial commands 0=pause, 1=LVGL without TFT SPI, 2=normal LVGL/SPI.
 // No persistent settings, internet, OBD, drone, or camera actions.
@@ -18,7 +18,7 @@ void setup() {
     Serial.begin(115200);
     delay(250);
     Serial.println();
-    Serial.println("Freenove-DevBoard-Companion v0.2.0 / LVGL 9.6.0");
+    Serial.println("Freenove-DevBoard-Companion v0.2.0 / LVGL 8.3.11");
 
     const bool touchDetected = BoardTouch::begin();
     Serial.printf("FT6336U probe: %s\n", touchDetected ? "FOUND" : "MISSING");
