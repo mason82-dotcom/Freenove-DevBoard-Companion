@@ -15,7 +15,7 @@ static_assert(kModules[1].id == Id::Webradio, "Webradio tile");
 static_assert(kModules[2].id == Id::Obd2, "OBD tile");
 static_assert(kModules[3].id == Id::Drone, "Drone tile");
 static_assert(kModules[4].id == Id::System, "System tile");
-static_assert(kModules[5].id == Id::Camera, "Camera tile");
+static_assert(kModules[5].id == Id::PulsOx, "PulsOx tile");
 int main() { return 0; }
 '''
 
@@ -34,51 +34,30 @@ class CompanionShellTests(unittest.TestCase):
                  str(source)], capture_output=True, text=True, timeout=30)
             self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_lvgl9_display_and_touch_are_wired(self):
+    def test_lvgl8_display_and_touch_are_wired(self):
         source = (ROOT / "src" / "CompanionUi.cpp").read_text(encoding="utf-8")
         for expected in (
-            "screen.setRotation(1)",
-            "lv_display_create(",
-            "lv_display_set_color_format(",
-            "LV_COLOR_FORMAT_RGB565",
-            "lv_display_set_buffers(",
-            "LV_DISPLAY_RENDER_MODE_PARTIAL",
-            "lv_display_set_flush_cb(",
-            "lv_indev_create(",
-            "lv_indev_set_read_cb(",
-            "lv_indev_set_display(",
-            "TouchTransform::rawToLandscape(",
-            "lv_tick_inc(",
-            "lv_timer_handler(",
-            "lv_screen_active(",
-            "lv_button_create(",
+            "screen.setRotation(1)", "lv_disp_draw_buf_init(",
+            "lv_disp_drv_register(", "lv_indev_drv_register(",
+            "lv_disp_flush_ready(disp)", "lv_btn_create(",
+            "TouchTransform::rawToLandscape(", "lv_tick_inc(",
+            "lv_timer_handler(", "lv_scr_act(",
         ):
             with self.subTest(symbol=expected):
                 self.assertIn(expected, source)
-        for removed in ("lv_disp_drv_register(", "lv_indev_drv_register(",
-                        "lv_disp_draw_buf_init(", "lv_scr_act(", "lv_btn_create("):
-            with self.subTest(removed=removed):
-                self.assertNotIn(removed, source)
+        self.assertIn("LVGL_VERSION_MAJOR == 8", source)
+        self.assertIn("LVGL_VERSION_MINOR == 3", source)
+        self.assertNotIn("lv_display_create(", source)
 
-    def test_lvgl_version_assertion_uses_correct_macros(self):
+    def test_pulsox_lifecycle_and_display(self):
         source = (ROOT / "src" / "CompanionUi.cpp").read_text(encoding="utf-8")
-        self.assertIn("LVGL_VERSION_MAJOR == 9", source)
-        self.assertIn("LVGL_VERSION_MINOR == 6", source)
-        self.assertNotIn("LV_VERSION_MAJOR", source)
-        self.assertNotIn("LV_VERSION_MINOR", source)
-
-    def test_lvgl9_owned_display_and_input_objects(self):
-        # LVGL 9 owns created objects and their driver state internally.
-        gui = (ROOT / "src" / "CompanionUi.cpp").read_text(encoding="utf-8")
-        self.assertIn("static lv_display_t* lvDisplay", gui)
-        self.assertIn("static lv_indev_t* lvPointer", gui)
-        self.assertIn("lvDisplay = lv_display_create(", gui)
-        self.assertIn("lvPointer = lv_indev_create(", gui)
-        self.assertIn("lv_display_flush_ready(disp)", gui)
-        self.assertIn("uint8_t* colors)", gui)
-        self.assertIn("sizeof(drawPixels), LV_DISPLAY_RENDER_MODE_PARTIAL", gui)
-        self.assertNotIn("lv_disp_drv_t", gui)
-        self.assertNotIn("lv_indev_drv_t", gui)
+        for expected in (
+            "PulsOx::begin()", "PulsOx::requestActive(false)",
+            "PulsOx::requestActive(true)", "PulsOx::format(",
+            "PulsOx::read()", "now - lastPulsOxRefresh >= 500",
+        ):
+            with self.subTest(symbol=expected):
+                self.assertIn(expected, source)
 
     def test_normal_boot_auto_starts_stage_2(self):
         gui = (ROOT / "src" / "CompanionUi.cpp").read_text(encoding="utf-8")
@@ -95,7 +74,7 @@ class CompanionShellTests(unittest.TestCase):
         gui = (ROOT / "src" / "CompanionUi.cpp").read_text(encoding="utf-8")
         header = (ROOT / "include" / "CompanionUi.h").read_text(encoding="utf-8")
         for expected in ("diagStage = 0", "diagStage == 0",
-                         "diagStage != 2", "lv_display_flush_ready(disp)",
+                         "diagStage != 2", "lv_disp_flush_ready(disp)",
                          "DIAG SPI ENTER", "DIAG SPI EXIT"):
             with self.subTest(symbol=expected):
                 self.assertIn(expected, gui)
