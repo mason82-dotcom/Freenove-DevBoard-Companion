@@ -133,7 +133,7 @@ class GUIsliceLovyanPrototypeTests(unittest.TestCase):
         self.assertIn("gslc_ElemSetDrawFunc(&gui, canvasRefs[i], &ModuleGraphics::draw);", self.main)
         self.assertIn("gslc_ElemCreateBox(", self.main)
         self.assertIn("PulsOx::begin()", self.main)
-        self.assertIn("case CompanionModules::Id::PulseOx: pulse(g,r);", graphics)
+        self.assertIn("case CompanionModules::Id::PulseOx: pulseHeart(g,r);", graphics)
         self.assertIn("case CompanionModules::Id::System: sys(g,r);", graphics)
         self.assertIn("PulsOx::readWave(samples,128)", graphics)
         self.assertIn("gslc_DrawLine(", graphics)
