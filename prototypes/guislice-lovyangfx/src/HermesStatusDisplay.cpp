@@ -17,7 +17,7 @@ void format(const Snapshot& s, uint32_t nowMs, char rows[4][52]) {
                     && ageMs <= 15000u && s.probeFresh;
     if (!fresh) {
         switch (s.phase) {
-            case Phase::DISABLED:
+            case Phase::INACTIVE:
                 snprintf(rows[0], 52, "TLS: AUS (lokaler Modus)");
                 break;
             case Phase::STARTING:
