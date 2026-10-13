@@ -6,11 +6,11 @@
 // This header intentionally has no Arduino/FreeRTOS dependencies.
 namespace HermesStatus {
 enum class Phase : uint8_t {
-    DISABLED, STARTING, WIFI_DOWN, CLOCK_WAIT, CONFIG_ERROR,
+    INACTIVE, STARTING, WIFI_DOWN, CLOCK_WAIT, CONFIG_ERROR,
     HTTP_ERROR, INVALID_RESPONSE, READY, TASK_FAILED
 };
 struct Snapshot {
-    Phase phase = Phase::DISABLED;
+    Phase phase = Phase::INACTIVE;
     uint32_t lastSuccessMs = 0;
     uint32_t sequence = 0;
     int16_t httpCode = 0;
