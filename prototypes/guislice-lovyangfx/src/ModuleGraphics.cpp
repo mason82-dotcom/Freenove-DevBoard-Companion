@@ -41,14 +41,32 @@ void bar(gslc_tsGui* g, int16_t x, int16_t y, int16_t width,
 void pulse(gslc_tsGui* g, gslc_tsRect r) {
     // Separate read-only snapshot; never reads Wire on the GUI thread.
     const PulsOx::Snapshot s = PulsOx::read();
-    const int16_t cy = r.y + 39;
     const bool active = s.running && s.sensorOk && s.finger;
-    dot(g,r.x+26,cy-6,9,active ? red : muted);
-    dot(g,r.x+42,cy-6,9,active ? red : muted);
-    for(int16_t k=0;k<13;++k) {
-        const int16_t w=13-k;
-        line(g,r.x+17+k,cy+k/2,r.x+51-k,cy+k/2,
-             active ? red : muted);
+    // Compact symmetric heart, fully contained within the left 66 px of
+    // the 294x84 canvas. No overlapping circles or scanlines beyond bounds.
+    // This icon is deliberately static: do not repaint it at 8 FPS.
+    const int16_t cx = r.x + 35;
+    const int16_t heartTop = r.y + 15;
+    const gslc_tsColor heartColor = active ? red : muted;
+    // Fill with horizontal strokes bounded by the heart silhouette.
+    // Top: two rounded lobes separated by a shallow central notch.
+    static const uint8_t halfWidths[] = {
+        0, 4, 7, 9, 11, 12, 13, 14, 15, 16,
+        17, 18, 18, 17, 17, 16, 15, 14, 13, 12,
+        11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1
+    };
+    // The two top lobes have their own caps; lower scanlines converge
+    // smoothly to a single centered point.
+    for (int16_t y = 0; y < 5; ++y) {
+        const int16_t lobeHalf = (y == 0) ? 3 : (y == 1 ? 5 : (y == 2 ? 7 : 8));
+        line(g, cx - 10 - lobeHalf, heartTop + y,
+                cx - 10 + lobeHalf, heartTop + y, heartColor);
+        line(g, cx + 10 - lobeHalf, heartTop + y,
+                cx + 10 + lobeHalf, heartTop + y, heartColor);
+    }
+    for (uint8_t y = 5; y < sizeof(halfWidths); ++y) {
+        const int16_t hw = halfWidths[y];
+        line(g, cx - hw, heartTop + y, cx + hw, heartTop + y, heartColor);
     }
 
     // Original PulsOxMonitor uses an IR ring buffer and a 320x86 sprite.
