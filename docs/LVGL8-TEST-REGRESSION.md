@@ -97,3 +97,13 @@ Geflasht auf `/dev/ttyACM0` (SER `58FC003021`) nach Freigabe durch den Nutzer; U
 - Neuer Zustand `NoEcu` bei `UNABLE TO CONNECT`/`BUS INIT`/`NO DATA`/`CAN ERROR` auf `0100` („kein Steuergeraet (Zuendung?)“), neuer Versuch nach 5 s. Adapterkennung nur noch bei Live-Verbindung in Zeile 1, damit lange Zustandstexte passen.
 - Tests: 45 bestanden (u. a. WLAN-Einzelbesitz, Timeout-Abbruch, NoEcu-Texte, Zeilenlänge ≤ 40 Zeichen). Builds: Labor, Fahrzeug (`OBD2_PROFILE_VEHICLE 1`) und ohne lokale Konfiguration jeweils **SUCCESS**.
 - **Noch nicht auf dem Board geprüft**; kein echter Dongle, kein Fahrzeug.
+
+
+## Fahrzeugprofil Mercedes C 350 W204 (2008, M272) (13.10.2026)
+
+- `include/VehicleProfiles.h`: benanntes Profil `MercedesC350W204M272`; es beschriftet nur die Seite („OBD2 | C350 W204 M272“) und fügt **keine Befehle** hinzu. Auswahl lokal per `#define OBD2_VEHICLE VehicleProfiles::Vehicle::MercedesC350W204M272` im Fahrzeugblock von `Obd2LocalConfig.h`.
+- Fahrzeugbezogene Erweiterung der Allowlist (weiterhin nur exakt `01PP`): Kraftstoffkorrektur kurz/lang **Bank 1 und Bank 2** (`0106`–`0109`, sinnvoll beim V6 M272) und Luftmasse (`0110`). Skalierung: Trim `(A−128)·100/128 %`, MAF `(256A+B)/100 g/s`.
+- Protokoll: erwartet ISO 15765-4 CAN, **nicht verifiziert**; `ATSP0` (automatische Suche) bleibt, damit eine falsche Annahme die Verbindung nicht blockiert. Welche PIDs das Steuergerät liefert, wird zur Laufzeit per `0100/0120/0140` ermittelt; nicht gelieferte Werte erscheinen als `n/v`.
+- Seite: 7 Datenzeilen (u. a. „Spannung | MAF“, „Trim B1: kurz/lang B2: kurz/lang %“); der Read-only-Hinweis steht in der Fußzeile. Zähleranzeige begrenzt (TX `99999+`, Timeouts/Fehler `99+`), Worst-Case-Test: jede Zeile ≤ 40 Zeichen.
+- Praxis: Dongle bei abgestelltem Fahrzeug abziehen (Dauerstromverbrauch). Erste Tests nur im Stillstand mit Zündung an.
+- Tests: 45 bestanden. Builds Labor, Fahrzeug, Fahrzeug+C350 und ohne Konfiguration: **SUCCESS**. **Nicht am Fahrzeug geprüft**; Dongle-SSID noch unbekannt.
