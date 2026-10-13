@@ -69,6 +69,9 @@ void query() {
         return;
     }
     http->setTimeout(4000);
+    // The bridge is polled periodically; explicitly disable HTTP keep-alive.
+    // This avoids reusing a TLS socket the server may already have closed.
+    http->setReuse(false);
     http->setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
     http->addHeader("X-Hermes-Touch-Token", HERMES_DEVICE_TOKEN);
     http->addHeader("Accept", "application/json");
