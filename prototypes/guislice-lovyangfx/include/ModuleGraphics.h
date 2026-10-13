@@ -7,7 +7,7 @@
 // No second TFT_eSPI/LovyanGFX display instance is created.
 namespace ModuleGraphics {
 void bind(uint8_t index, gslc_tsElemRef* canvas);
-void sampleSystem(uint32_t freeHeap);
+void bindPulseWave(gslc_tsElemRef* canvas);\nvoid refreshPulse(gslc_tsGui* gui);\nvoid resetPulseHeart();\nvoid sampleSystem(uint32_t freeHeap);
 bool draw(void* gui, void* elemRef, gslc_teRedrawType redraw);
 void refresh(gslc_tsGui* gui, uint8_t index);
 }
