@@ -201,8 +201,7 @@ void setup() {
     Serial.begin(115200);
     delay(250);
     Serial.println("FNK0086 GUIslice 0.17.2 + LovyanGFX 1.2.32 EXPERIMENT");
-    Serial.printf("PSRAM at boot: %u bytes free
-",
+    Serial.printf("PSRAM at boot: %u bytes free\n",
                   static_cast<unsigned>(ESP.getFreePsram()));
     gslc_InitDebug(printDebug);
     gslc_InitTouchHandler(&fnkTouch);
