@@ -58,7 +58,9 @@ Frühere Hardwareprüfungen und Diagnoseprotokolle sind Teil der Projektgeschich
 python3 tools/elm327_lab_sim.py --bind <Pi-LAN-IP> --port 35000
 ```
 
-Der Simulator protokolliert jeden empfangenen Befehl und meldet alles außerhalb der Allowlist als `POLICY VIOLATION`. Ein echter WLAN-ELM327 spannt ein eigenes Netz auf (meist `192.168.0.10`) und braucht ein eigenes Fahrzeugprofil, das noch nicht umgesetzt ist.
+Der Simulator protokolliert jeden empfangenen Befehl und meldet alles außerhalb der Allowlist als `POLICY VIOLATION`. ### Fahrzeugprofil (echter WLAN-ELM327)
+
+In `include/Obd2LocalConfig.h` den Laborblock durch den Fahrzeugblock aus der Vorlage ersetzen (`OBD2_PROFILE_VEHICLE 1`, SSID/Passwort des Dongles, meist `192.168.0.10:35000`). Beim Öffnen der OBD2-Seite wechselt `WifiLink` ins Dongle-WLAN, Hermes pausiert; beim Verlassen kehrt das Board ins Heim-WLAN zurück. Zugangsdaten werden nicht in den Flash (NVS) geschrieben. Antwortet kein Steuergerät (Zündung aus), zeigt die Seite „kein Steuergeraet (Zuendung?)“. **Erste Tests nur im Stillstand**; das Fahrzeugprofil ist noch nicht an einem echten Dongle geprüft.
 
 ## Entwicklungshinweise
 

@@ -86,3 +86,14 @@ Geflasht auf `/dev/ttyACM0` (SER `58FC003021`) nach Freigabe durch den Nutzer; U
   - Foto der OBD2-Seite (Nutzer, zweiter Simulatorlauf): alle Werte live (859 rpm, 32 km/h, 90 C, 30 C, 29,8 %, 12,5 %, 13,50 V; TX 75, 0 Timeouts, 0 Fehler), Read-only-Hinweis sichtbar. Die erste Zeile `ELM327 v1.5 (LAB SIM)` reichte bis an den Panelrand: Die Adapterkennung wird jetzt ohne Klammerzusatz übernommen und auf 15 Zeichen begrenzt (`Obd2Response::adapterId()`, nativ getestet, inkl. Echo mit früherem „E“). Nach Freigabe geflasht und per Foto bestätigt: erste Zeile `ELM327: verbunden | ELM327 v1.5` mit Abstand zum Panelrand; Livewerte 1400 rpm, 46 km/h, TX 183, 0 Timeouts, 0 Fehler. Simulatorlauf: 347 Befehle, 0 Policy-Verletzungen; Beenden per Ctrl+C sauber, kein Traceback.
   - Simulator: beendet sich jetzt bei Ctrl+C/SIGTERM sauber (vorher nur per SIGTERM, ohne Zusammenfassung) und protokolliert keinen Traceback mehr, wenn das Board die Verbindung beim Verlassen der Seite zurücksetzt.
   - **Kein Fahrzeugtest**, kein echter ELM327-Dongle.
+
+
+## OBD2-Fahrzeugprofil (13.10.2026)
+
+- `include/WifiLink.h`, `src/WifiLink.cpp`: einzige Stelle mit `WiFi.begin()`/`WiFi.disconnect()`. Profile *Heim* (Hermes, OBD2-Labor) und *Fahrzeug* (Dongle-AP). `WiFi.persistent(false)`: Profilwechsel schreiben keine Zugangsdaten in den NVS-Flash. Das Profil wird vor dem Trennen umgestellt, damit kein Worker der alten Verbindung vertraut.
+- Hermes fragt nur bei verbundenem Heimprofil ab; im Fahrzeugprofil verlässt kein Request (und kein Token) das Gerät.
+- OBD2-Worker: wählt beim Öffnen der Seite das Profil, kehrt beim Verlassen ins Heim-WLAN zurück.
+- **Sicherheitskorrektur:** Ein Timeout ohne `>`-Prompt beendet jetzt die TCP-Sitzung (vorher lief sie weiter, eine verspätete Antwort hätte dem nächsten Befehl derselben PID zugeordnet werden können).
+- Neuer Zustand `NoEcu` bei `UNABLE TO CONNECT`/`BUS INIT`/`NO DATA`/`CAN ERROR` auf `0100` („kein Steuergeraet (Zuendung?)“), neuer Versuch nach 5 s. Adapterkennung nur noch bei Live-Verbindung in Zeile 1, damit lange Zustandstexte passen.
+- Tests: 45 bestanden (u. a. WLAN-Einzelbesitz, Timeout-Abbruch, NoEcu-Texte, Zeilenlänge ≤ 40 Zeichen). Builds: Labor, Fahrzeug (`OBD2_PROFILE_VEHICLE 1`) und ohne lokale Konfiguration jeweils **SUCCESS**.
+- **Noch nicht auf dem Board geprüft**; kein echter Dongle, kein Fahrzeug.
