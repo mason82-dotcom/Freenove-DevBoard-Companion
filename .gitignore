@@ -8,3 +8,5 @@ secrets.*
 *.pem
 *.key
 config/private/
+# Populated Hermes credentials (Wi-Fi, device token, CA). Template stays tracked.
+include/HermesLocalConfig.h
