@@ -191,7 +191,7 @@ void setup() {
     // Network initialization never blocks the GUIslice loop. No WiFi, HTTPS
     // or credentials are used unless a private local opt-in header exists.
     if (HermesStatus::enabled()) {
-        Serial.printf("Hermes TLS worker: %s\\n",
+        Serial.printf("Hermes TLS worker: %s\n",
                       HermesStatus::begin() ? "STARTED" : "FAILED");
     } else {
         Serial.println("Hermes TLS: OFFLINE (default)");
