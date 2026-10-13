@@ -46,7 +46,7 @@ void pulse(gslc_tsGui* g, gslc_tsRect r) {
     // the 294x84 canvas. No overlapping circles or scanlines beyond bounds.
     // This icon is deliberately static: do not repaint it at 8 FPS.
     const int16_t cx = r.x + 35;
-    const int16_t top = r.y + 15;
+    const int16_t heartTop = r.y + 15;
     const gslc_tsColor heartColor = active ? red : muted;
     // Fill with horizontal strokes bounded by the heart silhouette.
     // Top: two rounded lobes separated by a shallow central notch.
@@ -59,14 +59,14 @@ void pulse(gslc_tsGui* g, gslc_tsRect r) {
     // smoothly to a single centered point.
     for (int16_t y = 0; y < 5; ++y) {
         const int16_t lobeHalf = (y == 0) ? 3 : (y == 1 ? 5 : (y == 2 ? 7 : 8));
-        line(g, cx - 10 - lobeHalf, top + y,
-                cx - 10 + lobeHalf, top + y, heartColor);
-        line(g, cx + 10 - lobeHalf, top + y,
-                cx + 10 + lobeHalf, top + y, heartColor);
+        line(g, cx - 10 - lobeHalf, heartTop + y,
+                cx - 10 + lobeHalf, heartTop + y, heartColor);
+        line(g, cx + 10 - lobeHalf, heartTop + y,
+                cx + 10 + lobeHalf, heartTop + y, heartColor);
     }
     for (uint8_t y = 5; y < sizeof(halfWidths); ++y) {
         const int16_t hw = halfWidths[y];
-        line(g, cx - hw, top + y, cx + hw, top + y, heartColor);
+        line(g, cx - hw, heartTop + y, cx + hw, heartTop + y, heartColor);
     }
 
     // Original PulsOxMonitor uses an IR ring buffer and a 320x86 sprite.
