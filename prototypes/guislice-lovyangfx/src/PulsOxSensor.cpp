@@ -156,6 +156,9 @@ void task(void*) {
                 configured = false;
                 Serial.println("PulsOx MAX30102: SLEEP");
             }
+            if (sessionActive || mustStop) {
+                Serial.println("PulsOx MAX30102: STOPPED");
+            }
             sessionActive = false;
             s = Snapshot{};
             reset(s);
