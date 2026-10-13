@@ -163,7 +163,7 @@ bool buildGui() {
                      const_cast<char*>(CompanionModules::kModules[i].detail))) return false;
         // Each module owns a native GUIslice graphics canvas.
         canvasRefs[i] = gslc_ElemCreateBox(&gui, GSLC_ID_AUTO,
-                                             page, {12, 65, 294, 84});
+                                             page, i == 5 ? gslc_tsRect{12, 65, 74, 84}\n                                                          : gslc_tsRect{12, 65, 294, 84});
         if (!canvasRefs[i]) return false;
         ModuleGraphics::bind(i, canvasRefs[i]);
         gslc_ElemSetDrawFunc(&gui, canvasRefs[i], &ModuleGraphics::draw);
