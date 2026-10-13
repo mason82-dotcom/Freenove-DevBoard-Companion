@@ -113,10 +113,8 @@ void worker(void*) {
     WiFi.setAutoReconnect(true);
     WiFi.begin(HERMES_WIFI_SSID, HERMES_WIFI_PASSWORD);
     for (;;) {
-        if (WiFi.status() != WL_CONNECTED) {
-            // Non-blocking reconnect; the GUI never waits for WiFi.
-            WiFi.reconnect();
-        }
+        // WiFi.begin() and auto-reconnect manage association asynchronously.
+        // Do not call WiFi.reconnect() every 5 seconds while STA is connecting.
         query();
         vTaskDelay(pdMS_TO_TICKS(kPollMs));
     }
