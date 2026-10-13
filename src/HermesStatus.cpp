@@ -71,7 +71,7 @@ void query() {
     http->setTimeout(4000);
     http->setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
     http->addHeader("X-Hermes-Touch-Token", HERMES_DEVICE_TOKEN);
-    http.addHeader("Accept", "application/json");
+    http->addHeader("Accept", "application/json");
     s.httpCode = http->GET();
     if (s.httpCode == HTTP_CODE_OK) {
         const int length = http->getSize();
@@ -118,7 +118,7 @@ void query() {
         }
     }
     http->end();
-    Serial.printf("Hermes: wifi=%d http=%d valid=%d fresh=%d stack_free=%u heap=%u\\n",
+    Serial.printf("Hermes: wifi=%d http=%d valid=%d fresh=%d stack_free=%u heap=%u\n",
                   static_cast<int>(s.connected), s.httpCode, static_cast<int>(s.valid),
                   static_cast<int>(s.fresh),
                   static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)),
