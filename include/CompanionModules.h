@@ -6,7 +6,7 @@
 // Individual modules remain disabled placeholders until their dedicated
 // read-only integration has been separately tested.
 namespace CompanionModules {
-enum class Id : uint8_t { Hermes, Webradio, Obd2, Drone, System, PulseOx };
+enum class Id : uint8_t { Hermes, Webradio, Obd2, Drone, System, Camera };
 
 struct Module {
     Id id;
@@ -20,7 +20,7 @@ constexpr Module kModules[] = {
     {Id::Obd2,    "OBD2",     "Status: read-only ELM327 noch nicht aktiv"},
     {Id::Drone,   "Drohne",   "Status: Telemetrie noch nicht verbunden"},
     {Id::System,  "System",   "Lokale ESP32-Diagnose"},
-    {Id::PulseOx, "PulsOx", "MAX30102 | Puls & SpO2 (Demo)"},
+    {Id::Camera,  "Kamera",   "Status: Kamera noch nicht aktiv"},
 };
 constexpr size_t kModuleCount = sizeof(kModules) / sizeof(kModules[0]);
 static_assert(kModuleCount == 6, "Companion home screen must have six modules");
