@@ -10,7 +10,7 @@ Companion-Dashboard für das Freenove ESP32-S3 FNK0086 mit **LVGL 8.3.11**, **TF
 | --- | --- |
 | Hermes | Read-only HTTPS-Status (CA-verifiziert, Token-Header, nur GET). Letzter gültiger Stand bleibt bei Fehlern sichtbar und wird nach 15 s als veraltet ausgeblendet. Zeigt WLAN-Pegel bzw. HTTP-Fehler mit Zähler |
 | Webradio | Navigierbare Platzhalterseite; Audio noch nicht aktiv |
-| OBD2 | Read-only ELM327 über WLAN/TCP (Laborprofil): Drehzahl, Tempo, Kühlmittel, Ansaugluft, Last, Drossel, Spannung; feste Allowlist (Adapter-Setup + Mode 01), keine Fehlercodes, kein Löschen. Sitzung nur bei geöffneter Seite. Noch nicht am Fahrzeug geprüft |
+| OBD2 | Read-only ELM327 über WLAN/TCP (Laborprofil): Drehzahl, Tempo, Kühlmittel, Ansaugluft, Last, Drossel, Spannung; feste Allowlist (Adapter-Setup + Mode 01), keine Fehlercodes, kein Löschen. Sitzung nur bei geöffneter Seite. Am Board gegen den Laborsimulator geprüft (2.699 Befehle, 0 Policy-Verletzungen); noch nicht am Fahrzeug |
 | Drohne | Navigierbare Platzhalterseite; keine Telemetrieverbindung |
 | System | Lokale Livewerte: Uptime, freier/minimaler Heap, größter Block, PSRAM, CPU-Takt, WLAN-Pegel |
 | PulsOx | MAX30102-Sensoranbindung mit eigenem Worker, Start/Stopp beim Öffnen/Schließen, Fingerstatus, Puls, SpO₂ und auto-skalierte IR-Pulskurve (4 s) |

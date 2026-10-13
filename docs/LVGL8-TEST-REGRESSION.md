@@ -78,4 +78,9 @@ Geflasht auf `/dev/ttyACM0` (SER `58FC003021`) nach Freigabe durch den Nutzer; U
 - `src/Obd2Display.cpp`: Seitentext; Werte älter als 5 s oder ohne Live-Verbindung als `--`, nicht unterstützte PIDs als `n/v`.
 - `tools/elm327_lab_sim.py`: eigener Laborsimulator mit Befehlsprotokoll und Policy-Verletzungszähler.
 - Tests: `tests/test_obd2.py` + `tests/obd2_smoke.cpp` (Allowlist, Parser, Bitmap, Skalierung, Formatter, Simulator). **43 Tests bestanden.** Build mit und ohne `Obd2LocalConfig.h`: **SUCCESS** (RAM 40,0 %, Flash 40,2 %).
-- **Noch nicht auf dem Board geprüft**, kein Fahrzeugtest.
+- **Labortest am Board (13.10.2026):** Nach Nutzerfreigabe geflasht auf `/dev/ttyACM0` (SER `58FC003021`); `tools/elm327_lab_sim.py` auf `192.168.178.63:35000`, 180 s. Drei Besuche der OBD2-Seite (öffnen, zurück, erneut öffnen):
+  - Simulator: **2.699 Befehle, 0 Policy-Verletzungen**; empfangen wurden ausschließlich `ATZ ATE0 ATL0 ATS0 ATH0 ATSP0 0100 0120 0140 0104 0105 010C 010D 010F 0111 0142`.
+  - Board-Zähler je Sitzung stimmen exakt mit dem Simulator überein (158 / 536 / 2.005 Befehle); 0 Timeouts. Sitzung 1 meldete `errors=1` ohne verlorene Antwort (tx = Simulatorzählung), vermutlich ein erster Verbindungsversuch direkt nach dem Booten; der Mitschnitt begann zu spät für einen Nachweis. Sitzung 2 und 3: 0 Fehler.
+  - Sitzung endet beim Verlassen der Seite (`OBD2: idle`, TCP getrennt); beim nächsten Öffnen vollständige Neuinitialisierung.
+  - Simulator beendet: Board wechselt zu `error`, neuer Versuch alle ~3 s, kein Absturz, Heap stabil (~152 KB). Worker-Stack: 3.712 von 6.144 Byte frei.
+  - Kein Foto der OBD2-Seite ausgewertet; **kein Fahrzeugtest**, kein echter ELM327-Dongle.
