@@ -103,9 +103,10 @@ bool onButton(void*, void* ref, gslc_teTouch touch, int16_t, int16_t) {
         static const char* actions[] = {"Sender zurueck", "Play/Pause",
                                          "Sender weiter", "Lautstaerke"};
         const uint8_t action = static_cast<uint8_t>(id - kRadioButtonBase);
-        snprintf(radioMessage, sizeof(radioMessage),
+        char nextMessage[sizeof(radioMessage)];
+        snprintf(nextMessage, sizeof(nextMessage),
                  "%s: Audio noch nicht verbunden", actions[action]);
-        if (radioMessageRef) gslc_ElemSetTxtStr(&gui, radioMessageRef, radioMessage);
+        if (radioMessageRef) gslc_ElemSetTxtStr(&gui, radioMessageRef, nextMessage);
         Serial.printf("WEBRADIO TOUCH: %s (no audio action)\\n", actions[action]);
     } else if (id >= kBackButtonBase &&
                id < kBackButtonBase + static_cast<int16_t>(CompanionModules::kModuleCount)) {
