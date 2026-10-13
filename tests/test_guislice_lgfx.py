@@ -147,7 +147,7 @@ class GUIsliceLovyanPrototypeTests(unittest.TestCase):
         self.assertNotIn("TFT_eSPI s_tft", self.main)
         self.assertIn("SparkFun MAX3010x Pulse and Proximity Sensor Library@1.1.2",
                       self.ini["env:fnk0086_lgfx"]["lib_deps"])
-        modules = (ROOT / "include" / "CompanionModules.h").read_text()
+        modules = (PROTO / "include" / "CompanionGuiModules.h").read_text()
         self.assertIn('Id::PulseOx, "PulsOx"', modules)
         self.assertNotIn("Id::Camera", modules)
 
