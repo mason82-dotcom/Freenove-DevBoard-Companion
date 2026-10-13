@@ -82,6 +82,44 @@ pio run -c platformio.guislice-lgfx.ini -e fnk0086_lgfx
 
 Only after both builds pass and the user explicitly decides to do the first *new* hardware test, check `pio device list` and use PlatformIO's normal upload method. Do not use `firmware.factory.bin` or merge this experiment into `main`.
 
+## Graphische GUIslice-Dashboards und PulsOxMonitor (neuer Branch)
+
+Dieser Zweig ersetzt **Kamera durch PulsOx**, enthält aber weiterhin **genau sechs Module**. Er basiert ausschließlich auf dem visuell bestätigten Sechs-Modul-PR #5, **nicht** auf dem separaten Hermes-HTTPS-PR #6. Es wird keine bestehende Firmware automatisch ersetzt oder geflasht.
+
+### Bildschirme
+- **Hermes:** vernetztes Status-/Knotendiagramm, bis zur separaten TLS-Freigabe grau und offline
+- **Webradio:** ruhender Equalizer, solange kein I2S-Player verbunden ist, keine falschen Audiodaten
+- **OBD2:** deaktivierte Skala, kein ELM327- oder Fahrzeugkommando
+- **Drohne:** statisches Lage-/Telemetrie-Symbol, kein künstlicher Flugzustand und keine Befehle
+- **System:** tatsächliche Heap-/PSRAM-Anteile sowie echte Heap-Verlaufskurve mit 72 Werten
+- **PulsOx:** Herzsymbol und echte IR-Wellenform aus dem MAX30102, darunter Sensor, Finger, BPM und SpO2, inklusive Invalid-/Stale-Behandlung
+
+Sämtliche Canvas-Elemente zeichnen über **die vorhandene GUIslice-Render-API** (gslc_DrawLine, gslc_DrawFillRect, gslc_DrawFillCircle). Es gibt nur **ein** ST7789-Displayobjekt; kein zusätzlicher TFT_eSPI-Treiber, kein zweiter UI-Task und keine parallelen Displayschreibzugriffe. Die vier Textstatuszeilen jedes Moduls bleiben über den bisherigen sicheren `gslc_ElemSetTxtStr`-Pfad aktuell.
+
+### MAX30102-Anbindung aus hochgeladenem PulsOxMonitor
+
+SparkFun MAX3010x 1.1.2, Sample-Rate 100 Hz / 4-fach-Mittelung = 25 effektive Samples pro Sekunde, Rot-/IR-FIFO, PBA-BPM, Maxim-SpO2 über 100 Samples mit 25 Samples Verschiebung, Finger-Schwelle IR=50.000. Der eigene FreeRTOS-Task läuft auf Core 0; Display/Touch bleiben auf dem Arduino/UI-Task. Er verwendet **keine LED-/Reset-Touch-Gesten**, die bestehende GUI stören könnten.
+
+**Gleichzeitige I²C-Nutzung:** FT6336U 0x38 und MAX30102 0x57 teilen sich SDA2/SCL1. `SharedI2C` initialisiert den verifizierten Bus bei 400 kHz und stellt eine Mutex-Guard für sämtliche Touch-/Sensortransaktionen bereit. Der UI-Thread liest nur lock-geschützte Daten-Snapshots, niemals den Sensor über Wire. Ein fehlender Sensor soll die fünf anderen Module nicht blockieren. Sensor-FIFO-Zugriff, Reconnect und Touch müssen am realen FNK0086 geprüft werden.
+
+**Sicherheit:** Kein Medizinprodukt. SpO2-/BPM-Werte dienen ausschließlich Demonstrationszwecken und dürfen nicht zur Diagnose oder für Behandlungsentscheidungen verwendet werden. Bei ungültigen oder überalterten Daten steht `--`, nicht ein erfundener Vitalwert.
+
+### Lokaler Test (ohne Einfluss auf bestehenden Pi-Worktree)
+
+```bash
+cd ~/Projekte/Freenove-DevBoard-Companion
+git fetch origin feature/guislice-pulsox-max30102
+git worktree add --detach ../Freenove-DevBoard-Companion-pulsox \
+  origin/feature/guislice-pulsox-max30102
+cp ~/Projekte/Freenove-DevBoard-Companion-lvgl9-test/include/VerifiedDisplaySetup.h \
+  ../Freenove-DevBoard-Companion-pulsox/include/
+cd ../Freenove-DevBoard-Companion-pulsox
+python3 -m unittest discover -s tests -v
+pio run -c platformio.guislice-lgfx.ini -e fnk0086_lgfx
+```
+
+Vor einem Hardwaretest erst Build, USB-Gerät und I²C-Touchverhalten prüfen. **Nicht CI-Artefakte flashen** (synthetischer CFG1-Header). Die Webcam/Kamera-Integrationsdatei ist nur im neuen Branch entfernt; PR #5 und #6 bleiben erhalten.
+
 ## Raspberry Pi build, without disturbing the working LVGL project
 
 Use a completely new Git worktree; do not perform a force reset and do not overwrite the original Pi checkout:
