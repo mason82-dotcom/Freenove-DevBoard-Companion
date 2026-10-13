@@ -312,13 +312,10 @@ void poll() {
 
     if (shownPage == 6 && pulsOxLabel && now - lastPulsOxRefresh >= 500) {
         lastPulsOxRefresh = now;
-        const auto s = PulsOx::read();
-        if (!s.running) lv_label_set_text(pulsOxLabel, "Sensor-Task nicht aktiv");
-        else if (!s.sensorOk) lv_label_set_text(pulsOxLabel, "MAX30102 wird gesucht ...");
-        else if (!s.finger) lv_label_set_text(pulsOxLabel, "Finger auf Sensor legen");
-        else lv_label_set_text_fmt(pulsOxLabel, "Puls: %s\nSpO2: %s",
-            s.bpmValid ? String(s.bpm).c_str() : "--",
-            s.spo2Valid ? (String(s.spo2) + " %").c_str() : "--");
+        char rows[4][52] = {};
+        PulsOx::format(PulsOx::read(), now, rows);
+        lv_label_set_text_fmt(pulsOxLabel, "%s\n%s\n%s\n%s",
+                              rows[0], rows[1], rows[2], rows[3]);
     }
     if (shownPage == 5 && now - lastSystemRefresh >= 1000) {
         lastSystemRefresh = now;
