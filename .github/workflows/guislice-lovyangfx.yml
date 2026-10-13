@@ -11,6 +11,7 @@ on:
     branches:
       - feature/deps-lvgl9
       - experiment/guislice-lovyangfx
+      - feature/guislice-six-modules
 
 permissions:
   contents: read
