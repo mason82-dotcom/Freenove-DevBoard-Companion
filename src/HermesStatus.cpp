@@ -68,12 +68,17 @@ void query() {
     s.httpCode = http.GET();
     if (s.httpCode == HTTP_CODE_OK) {
         const int length = http.getSize();
-        if (length >= 0 && length <= static_cast<int>(kMaxBody)) {
-            // Bounded read, including chunked/unknown transfer lengths.
+        if (length > 0 && length <= static_cast<int>(kMaxBody)) {
+            // Reject unknown/chunked lengths; never parse an unbounded stream.
+            // A fixed-size input buffer caps memory regardless of response data.
+            char body[kMaxBody + 1];
             Stream& stream = http.getStream();
+            const size_t received = stream.readBytes(body, static_cast<size_t>(length));
+            body[received] = 0;
             JsonDocument doc;
-            DeserializationError error = deserializeJson(doc, stream,
-                DeserializationOption::NestingLimit(6));
+            DeserializationError error = received == static_cast<size_t>(length)
+                ? deserializeJson(doc, body, received, DeserializationOption::NestingLimit(6))
+                : DeserializationError::IncompleteInput;
             if (!error && getBool(doc["ok"]) && doc["schema_version"].as<int>() == 1) {
                 JsonVariantConst sys = doc["system"];
                 JsonVariantConst hermes = doc["hermes"];
