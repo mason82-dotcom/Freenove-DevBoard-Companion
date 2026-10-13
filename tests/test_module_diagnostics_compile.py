@@ -21,6 +21,8 @@ class SixModuleAdapterSmoke(unittest.TestCase):
         src = PROTO / "src"
         sources = [
             ROOT / "tests" / "module_diagnostics_smoke.cpp",
+            ROOT / "tests" / "fixtures" / "HermesStatusStub.cpp",
+            src / "HermesStatusDisplay.cpp",
             src / "ModuleDiagnostics.cpp",
             *(src / "modules" / name for name in (
                 "HermesModule.cpp", "WebradioModule.cpp",
