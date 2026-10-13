@@ -1,92 +1,63 @@
 # Freenove-DevBoard-Companion
 
-> **Hinweis zu diesem Checkout:** `platformio.ini` baut derzeit die LVGL-8.3.11-Firmware mit den sechs Modulen Hermes, Webradio, OBD2, Drohne, System und PulsOx. Die folgende LVGL-9-/Kamera-Beschreibung ist ein älterer Entwicklungsstand. Die aktuelle Testmigration und ihre Grenzen stehen in [docs/LVGL8-TEST-REGRESSION.md](docs/LVGL8-TEST-REGRESSION.md).
+Companion-Dashboard für das Freenove ESP32-S3 FNK0086 mit **LVGL 8.3.11**, **TFT_eSPI 2.5.43** und festem, hardwareverifiziertem **CFG1-Displayprofil**. Aktiver Entwicklungsbranch: `feature/companion-lvgl8-rebuild`.
 
-LVGL-9.6-basierte, **lokale und rein lesende** Companion-Oberfläche für das Freenove FNK0086 (ESP32-S3, 8 MB Flash und 8 MB PSRAM). Entwicklungsstand: `feature/deps-lvgl9`, siehe [PR #3](https://github.com/mason82-dotcom/Freenove-DevBoard-Companion/pull/3). `main` bleibt bis zur getrennten Integration unverändert.
+> **Aktueller Stand (13.10.2026):** Der aktive PlatformIO-Build enthält sechs Module: **Hermes, Webradio, OBD2, Drohne, System und PulsOx**. Die ältere LVGL-9-/Kamera-Architektur gehört nicht zu diesem Build. Die Tests und deren Grenzen sind in [docs/LVGL8-TEST-REGRESSION.md](docs/LVGL8-TEST-REGRESSION.md) beschrieben.
 
-**Unveränderliches Hardwareprofil:** `FNK0086A_2P8_CFG1_240x320_ST7789`; ausschließlich das auf realer Hardware bestätigte CFG1. Kein CFG2, keine automatische Umschaltung und kein Ersatzprofil.
+## Funktionsumfang
 
-## Abhängigkeiten und Hardware
+| Modul | Aktueller Stand |
+| --- | --- |
+| Hermes | Navigierbare Platzhalterseite; keine Verbindung |
+| Webradio | Navigierbare Platzhalterseite; Audio noch nicht aktiv |
+| OBD2 | Navigierbare Platzhalterseite; keine Fahrzeugkommunikation |
+| Drohne | Navigierbare Platzhalterseite; keine Telemetrieverbindung |
+| System | Lokale Livewerte: Uptime, freier Heap, freier PSRAM |
+| PulsOx | MAX30102-Sensoranbindung mit eigenem Worker, Start/Stopp beim Öffnen/Schließen, Anzeige von Fingerstatus, Puls und SpO₂ |
 
-| Bestandteil | Pin / Implementierung |
-|---|---|
-| LVGL | **9.6.0**, RGB565, 320 × 240, statischer 320 × 20 × 2 Byte Puffer |
-| pioarduino | **55.03.39**, ESP32 Arduino 3.3.9 |
-| TFT_eSPI | **2.5.43**, `setRotation(1)`, fixes CFG1 |
-| Touch | FT6336U, I²C 0x38, SDA GPIO2, SCL GPIO1 |
-| Touchtransformation | `screenX=min(rawY,319)`, `screenY=239-min(rawX,239)` |
-| Display | ST7789, 320 × 240 Landscape |
+**Sicherheit:** Die Platzhaltermodule senden keine Netzwerk-, Fahrzeug- oder Drohnenbefehle. PulsOx ist ein **Demonstrationsmodul**, kein Medizinprodukt; Messwerte sind nicht für Diagnose oder Behandlung geeignet.
 
-## LVGL-Konfiguration: Extended global aktiv
+## Hardwareprofil
 
-`include/lv_conf.h` definiert **COMPANION_LVGL_PROFILE_EXTENDED=1** als einziges globales LVGL-9-Profil. Das PlatformIO-Buildsystem bindet diese Datei über `-DLV_CONF_INCLUDE_SIMPLE=1 -Iinclude` für **alle LVGL-Bibliotheksdateien und die Anwendung** ein; es gibt keine separate Einstellung pro Companion-Modul.
+- Board: Freenove FNK0086 / ESP32-S3, 8 MB Flash und PSRAM
+- Display: ST7789, **320 × 240 Landscape**, `screen.setRotation(1)`
+- Displaytreiber: ausschließlich `include/VerifiedDisplaySetup.h` (**CFG1**, keine automatische CFG2-Umschaltung)
+- Touch: FT6336U, I²C-Adresse `0x38`, SDA GPIO2, SCL GPIO1
+- PulsOx: MAX30102 über gemeinsam abgesicherten I²C-Bus
+- Framework: pioarduino ESP32 Arduino; maßgebliche Versionen stehen in `platformio.ini`
 
-Aktiv sind: **Label, Button, Chart, Bar, Slider, Image, Flex, Grid**, RGB565-Software-Rendering und das Standard-Theme. Unbenutzte Widgets (beispielsweise Kalender, Keyboard, Textarea, Canvas, Menü und Tabellen) sowie Simple-/Mono-Themes und Observer sind explizit deaktiviert. Damit bleiben die für spätere Status-/Telemetrieoberflächen nötigen LVGL-Bausteine verfügbar, ohne sämtliche Standardwidgets mitzunehmen.
+Die bestätigte Touch-Transformation ist in `include/TouchTransform.h` implementiert. Display-Pins und Rotation nicht ohne erneute Hardwareprüfung ändern.
 
-**Validierungsstand:** Die früheren Display-/Touch-Abnahmen beziehen sich auf die vorherige LVGL-9-Konfiguration. Der neue globale Extended-Zuschnitt benötigt einen frischen ESP32-S3-Build und kurzen Anzeige-/Touch-Smoke-Test auf dem FNK0086; noch keine Flash-/RAM-Ersparnis oder Hardwareabnahme der neuen Konfiguration behaupten. Das verifizierte CFG1-Profil wurde nicht verändert.
+## Bauen und prüfen
 
-Die sechs Kacheln **Hermes, Webradio, OBD2, Drohne, System und Kamera** ermöglichen lokale Navigation. Nur das Systemmodul zeigt echte ESP32-Livewerte (Uptime, Heap, PSRAM). Alle anderen Module sind funktionslose Platzhalter. Es werden keine Netzwerkanfragen, Fahrzeugkommandos, Drohnenbefehle oder Kameraaufnahmen ausgeführt.
-
-## Hardwareabnahme vom 12.10.2026
-
-- Fünf-Punkte-Touch-Abnahme **5/5 PASS** mit der unveränderten CFG1-Ausrichtung.
-- LVGL 9.6 auf dem Raspberry Pi 5 erfolgreich gebaut: `pio run -e fnk0086`, 664.910 Byte Flash (21,1 %), statischer RAM 103.124 Byte (31,5 %).
-- Hardware-Diagnosestufen **0, 1, 2 bestanden**; `DIAG SPI ENTER` und `DIAG SPI EXIT` nachgewiesen.
-- Foto belegt die vollständige Darstellung aller sechs Kacheln; Touch-Navigation funktioniert laut Nutzer und seriell für System, Kamera, Drohne und Webradio mit Rückkehr zu Home.
-- Freier Heap **266.000 Byte**, PSRAM **8.383.524 Byte**, Loop-Stack-High-Watermark **3.672 Byte** im letzten eingereichten stabilen Log.
-- **Hardware-Gesamttest: PASS auf ausdrückliche Nutzerbestätigung.** Die eingereichten seriellen Laufzeitprotokolle reichen bis `uptime=270102 ms` (ca. 230 Sekunden ab Aktivierung von Stufe 2); ein vollständiges zehnminütiges Log liegt nicht vor. Diese Unterscheidung bleibt dokumentiert.
-
-Die Tests beziehen sich auf die manuell aktivierte Diagnose-Firmware. Der folgende **Auto-Start-Code ist noch nicht neu auf dem Pi gebaut/geflasht** und muss separat durch einen kurzen Boot-Test bestätigt werden.
-
-Details: [docs/DEPENDENCY-MIGRATION-LVGL9.md](docs/DEPENDENCY-MIGRATION-LVGL9.md), [docs/TOUCH-LANDSCAPE.md](docs/TOUCH-LANDSCAPE.md).
-
-## Startverhalten
-
-Ab dem aktuellen Quellcode startet die GUI **ohne serielle Eingabe** direkt im normalen LVGL-/SPI-Betrieb (Stufe 2). Für einen gezielten Diagnose-Boot mit angehaltenem LVGL kann beim Kompilieren `-DCOMPANION_DIAGNOSTIC_BOOT=1` zusätzlich als Build-Flag gesetzt werden.
-
-Die seriellen Kommandos bleiben auch bei normalem Boot verfügbar: `0` pausiert LVGL, `1` testet LVGL ohne TFT-SPI und `2` aktiviert LVGL mit TFT-SPI. Kommandos wirken nur auf die laufende Firmware, ändern keine Hardware-Konfiguration und werden nicht gespeichert.
-
-## Raspberry Pi: neuen Stand isoliert bauen
-
-Der Original-Checkout hat lokale, noch nicht nach GitHub übertragene Änderungen. **Keinen Reset, keinen Force-Pull und keine Überschreibung dieser Dateien.** Der bereits verwendete separate Testordner ist `~/Projekte/Freenove-DevBoard-Companion-lvgl9-test`:
+Auf dem Raspberry Pi im Checkout dieses Branches:
 
 ```bash
-cd ~/Projekte/Freenove-DevBoard-Companion-lvgl9-test
-git status --short
-git fetch origin feature/deps-lvgl9
-# Nur bei sauberem Worktree:
-git switch --detach origin/feature/deps-lvgl9
-test -f include/VerifiedDisplaySetup.h
-python3 -m unittest discover -s tests -v
+python3 -m unittest discover -s tests -p 'test_*.py' -v
 pio run -e fnk0086
 ```
 
-Die lokale, bewusst nicht versionierte `include/VerifiedDisplaySetup.h` enthält den tatsächlich verifizierten CFG1-TFT-Treiber. Falls sie fehlt, zunächst den bestehenden CFG1-Import prüfen; **niemals** CFG2 einsetzen.
+Die GitHub-Actions-Datei [lvgl8-regression.yml](.github/workflows/lvgl8-regression.yml) führt beide Prüfungen für Pushes auf den Entwicklungsbranch und für Pull Requests aus. **CI baut die Firmware, flasht jedoch keine Hardware.**
 
-Zum Hardware-Boot-Test nach erfolgreichem Build zuerst den Port mit `pio device list` und `ls -l /dev/serial/by-id/` prüfen. Wenn der Anschluss weiter eindeutig dem FNK0086 gehört:
+Zuletzt bestätigter GitHub-Actions-Lauf: [38450901771](https://github.com/mason82-dotcom/Freenove-DevBoard-Companion/actions/runs/38450901771) für Commit `b947db9` (**success**). Der dokumentierte lokale Durchlauf umfasste **31 bestandene Tests** und einen erfolgreichen PlatformIO-Build (RAM 32,3 %, Flash 16,7 %). Diese Werte sind Momentaufnahmen, keine Garantie für spätere Commits.
 
-```bash
-pio run -e fnk0086 -t upload --upload-port \
-  /dev/serial/by-id/usb-1a86_USB_Single_Serial_58FC003021-if00
-pio device monitor -p \
-  /dev/serial/by-id/usb-1a86_USB_Single_Serial_58FC003021-if00 \
-  -b 115200
-```
+## Dokumentation und Testgrenzen
 
-Erwartet wird `UI BOOT: stage 2 (normal LVGL/TFT operation)` und anschließend die sichtbare Oberfläche ohne Eingabe von `1` oder `2`.
+- [LVGL-8-Testmigration und Ergebnisse](docs/LVGL8-TEST-REGRESSION.md)
+- [Touch-Ausrichtung](docs/TOUCH-LANDSCAPE.md)
+- [Frühere LVGL-9-Abhängigkeitsmigration](docs/DEPENDENCY-MIGRATION-LVGL9.md) — **historisch, nicht aktiver Build**
+- [LVGL-Boot-/Crash-Analyse](docs/LVGL-BOOT-CRASH.md)
 
-## Struktur und Integration
+Frühere Hardwareprüfungen und Diagnoseprotokolle sind Teil der Projektgeschichte; die automatisierten LVGL-8-Tests sind **keine erneute physische Hardwareabnahme**. Hardwaretests wurden bereits im Projektverlauf durchgeführt. Neue Firmwareänderungen sollten bei Bedarf gezielt und nicht pauschal erneut geprüft werden.
 
-- `src/CompanionUi.cpp`: LVGL-9-Display-/Touchanbindung, sechs Kacheln, sichere Navigationsverarbeitung außerhalb der Event-Callbacks.
-- `src/BoardTouch.cpp`: I²C-Touch nur lesend.
-- `include/TouchTransform.h`: hardwarevalidierte Landscape-Touchabbildung.
-- `include/lv_conf.h`: projektspezifisches LVGL-9-RGB565-/Speicherprofil.
-- `src/main.cpp`: normaler GUI-Autostart, freiwillige serielle Diagnose und Laufzeittelemetrie.
-- `docs/LVGL-BOOT-CRASH.md`: Analyse des früheren LVGL-8-Dangling-Pointer-Problems.
-- `tests/`: CFG1-Sperre, Touchmathematik, Modulregistrierung, LVGL-9-Integration und Startmodus.
+## Entwicklungshinweise
 
-**Entwicklungshistorie:** [PR #1](https://github.com/mason82-dotcom/Freenove-DevBoard-Companion/pull/1) (Touch), [PR #2](https://github.com/mason82-dotcom/Freenove-DevBoard-Companion/pull/2) (LVGL-8-Prototyp), [PR #3](https://github.com/mason82-dotcom/Freenove-DevBoard-Companion/pull/3) (LVGL-9-Migration). Diese Pull Requests sind voneinander abhängig. `main` nicht unabhängig von den gestapelten Änderungen überschreiben.
+- Aktiver Anwendungscode: `src/` und `include/`
+- Aktiver Build: `platformio.ini`, Umgebung `fnk0086`
+- Prototypen unter `prototypes/` und LVGL-9-Dokumente sind nicht die aktive Firmware.
+- Änderungen an Sensor-Worker, Touchabbildung und CFG1 nur mit begründeter, gesonderter Validierung vornehmen.
+- Bestehende lokale Änderungen vor einem Pull oder Branchwechsel prüfen; **keine Force-Resets**.
 
 ## Lizenz
 
-Freenove-Originaldateien können zusätzliche Lizenzauflagen haben (unter anderem CC BY-NC-SA 3.0). Hersteller-Code vor einer späteren Übernahme lizenzrechtlich prüfen.
+Freenove-Originaldateien können zusätzliche Lizenzauflagen enthalten (unter anderem CC BY-NC-SA 3.0). Herkunft und Lizenzbedingungen vor einer Weiterverwendung prüfen.
