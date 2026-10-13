@@ -17,8 +17,8 @@ bool capture(CompanionModules::Id id, Snapshot& out, uint32_t uptimeMs) {
             Adapter::drone(out, uptimeMs); return true;
         case CompanionModules::Id::System:
             Adapter::system(out, uptimeMs); return true;
-        case CompanionModules::Id::Camera:
-            Adapter::camera(out, uptimeMs); return true;
+        case CompanionModules::Id::PulseOx:
+            Adapter::pulseOx(out, uptimeMs); return true;
     }
     return false;
 }
