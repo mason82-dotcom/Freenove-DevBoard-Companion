@@ -8,14 +8,14 @@ Companion-Dashboard für das Freenove ESP32-S3 FNK0086 mit **LVGL 8.3.11**, **TF
 
 | Modul | Aktueller Stand |
 | --- | --- |
-| Hermes | Navigierbare Platzhalterseite; keine Verbindung |
+| Hermes | Read-only HTTPS-Status (CA-verifiziert, Token-Header, nur GET). Letzter gültiger Stand bleibt bei Fehlern sichtbar und wird nach 15 s als veraltet ausgeblendet. Zeigt WLAN-Pegel bzw. HTTP-Fehler mit Zähler |
 | Webradio | Navigierbare Platzhalterseite; Audio noch nicht aktiv |
 | OBD2 | Navigierbare Platzhalterseite; keine Fahrzeugkommunikation |
 | Drohne | Navigierbare Platzhalterseite; keine Telemetrieverbindung |
-| System | Lokale Livewerte: Uptime, freier Heap, freier PSRAM |
-| PulsOx | MAX30102-Sensoranbindung mit eigenem Worker, Start/Stopp beim Öffnen/Schließen, Anzeige von Fingerstatus, Puls und SpO₂ |
+| System | Lokale Livewerte: Uptime, freier/minimaler Heap, größter Block, PSRAM, CPU-Takt, WLAN-Pegel |
+| PulsOx | MAX30102-Sensoranbindung mit eigenem Worker, Start/Stopp beim Öffnen/Schließen, Fingerstatus, Puls, SpO₂ und auto-skalierte IR-Pulskurve (4 s) |
 
-**Sicherheit:** Die Platzhaltermodule senden keine Netzwerk-, Fahrzeug- oder Drohnenbefehle. PulsOx ist ein **Demonstrationsmodul**, kein Medizinprodukt; Messwerte sind nicht für Diagnose oder Behandlung geeignet.
+**Sicherheit:** Die Platzhaltermodule senden keine Netzwerk-, Fahrzeug- oder Drohnenbefehle. Hermes liest nur (`GET /v1/status`), niemals mit `setInsecure()`. Zugangsdaten stehen ausschließlich in `include/HermesLocalConfig.h` (per `.gitignore` ausgeschlossen; Vorlage: `HermesLocalConfig.example.h`). PulsOx ist ein **Demonstrationsmodul**, kein Medizinprodukt; Messwerte sind nicht für Diagnose oder Behandlung geeignet.
 
 ## Hardwareprofil
 
@@ -39,7 +39,7 @@ pio run -e fnk0086
 
 Die GitHub-Actions-Datei [lvgl8-regression.yml](.github/workflows/lvgl8-regression.yml) führt beide Prüfungen für Pushes auf den Entwicklungsbranch und für Pull Requests aus. **CI baut die Firmware, flasht jedoch keine Hardware.**
 
-Zuletzt bestätigter GitHub-Actions-Lauf: [38450901771](https://github.com/mason82-dotcom/Freenove-DevBoard-Companion/actions/runs/38450901771) für Commit `b947db9` (**success**). Der dokumentierte lokale Durchlauf umfasste **31 bestandene Tests** und einen erfolgreichen PlatformIO-Build (RAM 32,3 %, Flash 16,7 %). Diese Werte sind Momentaufnahmen, keine Garantie für spätere Commits.
+Zuletzt bestätigter GitHub-Actions-Lauf: [38450901771](https://github.com/mason82-dotcom/Freenove-DevBoard-Companion/actions/runs/38450901771) für Commit `b947db9` (**success**). Der letzte lokale Durchlauf (Hermes/PulsOx/System-Ausbau) umfasste **37 bestandene Tests** und einen erfolgreichen PlatformIO-Build (RAM 39,8 %, Flash 40,0 %), sowohl mit als auch ohne lokale Hermes-Konfiguration. Diese Werte sind Momentaufnahmen, keine Garantie für spätere Commits.
 
 ## Dokumentation und Testgrenzen
 
@@ -56,6 +56,7 @@ Frühere Hardwareprüfungen und Diagnoseprotokolle sind Teil der Projektgeschich
 - Aktiver Build: `platformio.ini`, Umgebung `fnk0086`
 - Prototypen unter `prototypes/` und LVGL-9-Dokumente sind nicht die aktive Firmware.
 - Änderungen an Sensor-Worker, Touchabbildung und CFG1 nur mit begründeter, gesonderter Validierung vornehmen.
+- Serielles Heartbeat-Intervall: `-DCOMPANION_HEARTBEAT_MS=2000` für Absturzanalysen (Standard 10 s).
 - Bestehende lokale Änderungen vor einem Pull oder Branchwechsel prüfen; **keine Force-Resets**.
 
 ## Lizenz

@@ -27,3 +27,35 @@ Die Python-Tests enthalten Quelltextverträge und native Host-C++-Tests. Sie fü
 - Nach der Migration: `python3 -m unittest discover -s tests -v` — 31 Tests, alle bestanden.
 - `pio device list`: `/dev/ttyACM0`, USB VID:PID `1A86:55D3`, Seriennummer `58FC003021`, Beschreibung `USB Single Serial`. `/dev/serial/by-id/usb-1a86_USB_Single_Serial_58FC003021-if00` zeigt auf `/dev/ttyACM0`.
 - `pio run -e fnk0086`: **SUCCESS** in 45,09 s; RAM 105.852 / 327.680 Byte (32,3 %), Flash 524.990 / 3.145.728 Byte (16,7 %). Die Kompilierung meldete Warnungen aus den Abhängigkeiten: TFT_eSPI hat keinen `TOUCH_CS` (der FT6336U wird stattdessen über `BoardTouch`/I²C gelesen); SparkFun MAX3010x definiert `I2C_BUFFER_LENGTH` erneut. Keine dieser Warnungen verhinderte den Build.
+
+
+## Analyse- und Ausbaurunde (13.10.2026, Abend)
+
+### Behobene Fehler
+
+- **Zugangsdaten-Leck verhindert:** `include/HermesLocalConfig.h` (WLAN, Gerätetoken, CA) war weder versioniert noch ignoriert und wäre mit `git add -A` hochgeladen worden. Jetzt in `.gitignore`; ein Test sichert das ab.
+- **Hermes-Worker konnte bis zu 120 s blockieren:** Der TLS-Handshake-Timeout von `NetworkClientSecure` ist in Arduino-ESP32 3.x standardmäßig 120 s. Jetzt `setHandshakeTimeout(8)` (Sekunden), Connect- und Lese-Timeout explizit je 4000 ms über `HTTPClient`. Das frühere `client->setTimeout(4)` wurde entfernt: Die Einheit ist in 3.x Millisekunden, der Wert wurde beim Verbinden ohnehin überschrieben.
+- **Einzelner Fehlversuch löschte alle Hermes-Werte:** Der Worker hält jetzt einen persistenten Zustand. Werte des letzten gültigen Abrufs bleiben bis 15 s sichtbar, danach werden sie ausgeblendet („Daten veraltet“). HTTP-Fehler werden mit Zähler angezeigt.
+- **Fehlende Diagnose:** Antworten ohne Content-Length (chunked) wurden stillschweigend verworfen; jetzt protokolliert.
+- **Veraltete Kommentare** (LVGL 9.6 / 8.6) korrigiert.
+
+### Optimierungen
+
+- Seitenlogik in `CompanionUi.cpp` über `showing(CompanionModules::Id::…)` statt fester Seitennummern 1/5/6.
+- Hermes-Log nur bei Änderung, Fehler oder etwa einmal pro Minute; enthält die Dauer von `http.end()` (`end_ms`) – ersetzt die vorübergehenden Diagnosezeilen davor/danach.
+- Heartbeat standardmäßig alle 10 s (`COMPANION_HEARTBEAT_MS`).
+- Hermes-Seitentext als reine Funktion `HermesStatus::format()` (`src/HermesDisplay.cpp`), nativ testbar.
+
+### Weiterentwicklung der Module
+
+- **PulsOx:** IR-Pulskurve als `lv_chart` (100 Punkte = 4 s, auto-skaliert, invertiert, Zugriff nur über `PulsOx::readWave()`, kein I²C aus der GUI).
+- **System:** minimaler freier Heap, größter allokierbarer Block, CPU-Takt, WLAN-Pegel (aus dem Hermes-Snapshot, keine eigene Netzwerkfunktion in der GUI).
+- **Hermes:** WLAN-Pegel, Alter der Daten, Fehlerzähler.
+
+### Tests und Ergebnisse
+
+- Neu: `tests/test_hermes_status.py` (gitignore, TLS-Grenzen, keine schreibenden HTTP-Methoden, persistenter Zustand) und `tests/hermes_format_smoke.cpp` (nativer Formatter-Test inkl. Veraltungsgrenze, `millis()`-Überlauf und Kürzung).
+- `tests/test_active_architecture.py`: Seiten-Verträge auf Modul-IDs umgestellt; Chart-Vertrag ergänzt.
+- `python3 -m unittest discover -s tests -p 'test_*.py'`: **37 Tests, alle bestanden.**
+- `pio run -e fnk0086`: **SUCCESS**, RAM 130.288 B (39,8 %), Flash 1.259.523 B (40,0 %); zusätzlich ohne `HermesLocalConfig.h` (CI-Pfad) erfolgreich gebaut.
+- Gerät: `/dev/ttyACM0`, VID:PID `1A86:55D3`, SER `58FC003021` (`/dev/serial/by-id/usb-1a86_USB_Single_Serial_58FC003021-if00`). **Nicht geflasht**, keine Hardwareprüfung dieser Änderungen. Zu prüfen auf dem Gerät: Layout der PulsOx-Kurve und der fünfzeiligen Hermes-/System-Texte, Hermes-Verhalten bei abgeschaltetem Server (Worker darf höchstens ca. 12 s pro Abruf blockieren).
