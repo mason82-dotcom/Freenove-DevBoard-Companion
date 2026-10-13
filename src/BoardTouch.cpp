@@ -1,6 +1,7 @@
 #include <Wire.h>
 #include "BoardPins.h"
 #include "BoardTouch.h"
+#include "SharedI2C.h"
 
 namespace {
 bool found = false;
@@ -9,8 +10,9 @@ bool found = false;
 namespace BoardTouch {
 
 bool begin() {
-    Wire.begin(BoardPins::kTouchSda, BoardPins::kTouchScl);
-    Wire.setTimeOut(20);
+    if (!SharedI2C::begin()) return false;
+    SharedI2C::Guard guard(150);
+    if (!guard) return false;
     Wire.beginTransmission(BoardPins::kTouchAddress);
     found = Wire.endTransmission() == 0;
     return found;
@@ -22,6 +24,8 @@ bool available() {
 
 bool readRaw(uint16_t& x, uint16_t& y) {
     if (!found) return false;
+    SharedI2C::Guard guard(30);
+    if (!guard) return false;
 
     // TD_STATUS(0x02), P1_XH, P1_XL, P1_YH, P1_YL.
     Wire.beginTransmission(BoardPins::kTouchAddress);
