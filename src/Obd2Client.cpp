@@ -1,6 +1,7 @@
 #include "Obd2Status.h"
 #include "Obd2Policy.h"
 #include "Obd2Response.h"
+#include "VehicleProfiles.h"
 #include "WifiLink.h"
 #include <Arduino.h>
 #include <WiFi.h>
@@ -61,7 +62,11 @@ char reply[kReplyCapacity];
 
 constexpr Command kPidCommand[Obd2Status::kPidCount] = {
     Command::Rpm, Command::Speed, Command::Coolant, Command::Intake,
-    Command::Load, Command::Throttle, Command::ModuleVoltage};
+    Command::Load, Command::Throttle, Command::ModuleVoltage,
+    Command::Maf, Command::ShortTrimB1, Command::LongTrimB1,
+    Command::ShortTrimB2, Command::LongTrimB2};
+static_assert(sizeof(kPidCommand) / sizeof(kPidCommand[0]) == Obd2Status::kPidCount,
+              "every displayed value needs exactly one allowlisted command");
 
 enum class Result : uint8_t { Ok, Timeout, Overflow, Closed, Aborted };
 
@@ -291,6 +296,14 @@ bool vehicleProfile() {
     return kVehicle;
 #else
     return false;
+#endif
+}
+
+const char* vehicleTitle() {
+#if OBD2_LOCAL_CONFIG_PRESENT && defined(OBD2_VEHICLE)
+    return VehicleProfiles::title(OBD2_VEHICLE);
+#else
+    return nullptr;
 #endif
 }
 

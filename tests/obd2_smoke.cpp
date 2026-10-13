@@ -60,6 +60,13 @@ int main() {
     assert(decodeValue(0x11, pct, v) && v == 100.0f);
     assert(!decodeValue(0x01, pct, v));
     assert(dataBytes(0x0C) == 2 && dataBytes(0x42) == 2 && dataBytes(0x0D) == 1);
+    assert(dataBytes(0x10) == 2 && dataBytes(0x06) == 1);
+    const uint8_t trimZero[] = {0x80}, trimLean[] = {0x8A}, trimMin[] = {0x00};
+    assert(decodeValue(0x06, trimZero, v) && v == 0.0f);
+    assert(decodeValue(0x07, trimLean, v) && std::fabs(v - 7.8125f) < 1e-4f);
+    assert(decodeValue(0x09, trimMin, v) && v == -100.0f);
+    const uint8_t maf[] = {0x01, 0xF4};
+    assert(decodeValue(0x10, maf, v) && v == 5.0f);
 
     // Adapter id: vendor suffix dropped, bounded length.
     char id[24];
@@ -76,7 +83,7 @@ int main() {
     assert(adapterId("ELM327 v1.5", small, sizeof(small)) && std::strcmp(small, "ELM") == 0);
 
     // Formatter.
-    char text[256];
+    char text[320];
     Obd2Status::Snapshot s;
     Obd2Status::format(s, 0, text, sizeof(text));
     assert(std::strcmp(text, "ELM327: nicht konfiguriert\n(include/Obd2LocalConfig.h)") == 0);
@@ -91,6 +98,11 @@ int main() {
     s.values[Obd2Status::Coolant] = {true, 90.0f, 1000};
     s.values[Obd2Status::Load] = {true, 29.8f, 1000};
     s.values[Obd2Status::Voltage] = {true, 13.5f, 1000};
+    s.values[Obd2Status::Maf] = {true, 5.0f, 1000};
+    s.values[Obd2Status::ShortTrimB1] = {true, 0.78125f, 1000};
+    s.values[Obd2Status::LongTrimB1] = {true, 7.8125f, 1000};
+    s.values[Obd2Status::ShortTrimB2] = {true, -2.3f, 1000};
+    s.supported[Obd2Status::LongTrimB2] = false;
     s.tx = 175;
     Obd2Status::format(s, 6000, text, sizeof(text));
     const char* live =
@@ -98,7 +110,8 @@ int main() {
         "Drehzahl: 1234 rpm | Tempo: 42 km/h\n"
         "Kuehlmittel: 90 C | Ansaug: --\n"
         "Last: 29.8 % | Drossel: n/v\n"
-        "Spannung: 13.50 V\n"
+        "Spannung: 13.50 V | MAF: 5.0 g/s\n"
+        "Trim B1: +1/+8 B2: -2/n/v %\n"
         "TX: 175 | Timeouts: 0 | Fehler: 0";
     if (std::strcmp(text, live) != 0) { std::printf("%s\n", text); assert(false); }
 
@@ -119,6 +132,16 @@ int main() {
     s.vehicleProfile = false;
     Obd2Status::format(s, 1000, text, sizeof(text));
     assert(std::strncmp(text, "ELM327: wartet auf WLAN\n", 24) == 0);
+    // Worst case: every value at its widest encodable magnitude.
+    s.link = Obd2Status::Link::Live;
+    for (auto& f : s.supported) f = true;
+    const float widest[Obd2Status::kPidCount] = {
+        16383.75f, 255, 215, -40, 100, 100, 65.535f, 655.35f, -100, -100, -100, -100};
+    for (uint8_t i = 0; i < Obd2Status::kPidCount; ++i) s.values[i] = {true, widest[i], 1000};
+    s.tx = s.timeouts = s.errors = 4294967295u;
+    Obd2Status::format(s, 1000, text, sizeof(text));
+    assert(std::strlen(text) + 1 < sizeof(text));
+    assert(std::strstr(text, "TX: 99999+ | Timeouts: 99+ | Fehler: 99+") != nullptr);
     for (const char* line = text; *line;) {  // every line fits the 278 px panel
         const char* end = std::strchr(line, '\n');
         const size_t len = end ? static_cast<size_t>(end - line) : std::strlen(line);

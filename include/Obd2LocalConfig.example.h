@@ -19,3 +19,6 @@
 // #define OBD2_WIFI_PASSWORD ""          // most dongles are open networks
 // #define OBD2_ELM_HOST "192.168.0.10"
 // #define OBD2_ELM_PORT 35000
+// Optional vehicle label (see include/VehicleProfiles.h), e.g. the owner's
+// Mercedes C 350 W204 (2008, M272):
+// #define OBD2_VEHICLE VehicleProfiles::Vehicle::MercedesC350W204M272

@@ -14,6 +14,7 @@ enum class Command : uint8_t {
     // Vehicle reads: SAE J1979 service 01 (current data) only.
     SupportedPids00, SupportedPids20, SupportedPids40,
     Load, Coolant, Rpm, Speed, Intake, Throttle, ModuleVoltage,
+    ShortTrimB1, LongTrimB1, ShortTrimB2, LongTrimB2, Maf,
     CommandCount  // sentinel, not a command
 };
 
@@ -39,6 +40,11 @@ constexpr const char* wireCommand(Command c) {
         case Command::Intake: return "010F";
         case Command::Throttle: return "0111";
         case Command::ModuleVoltage: return "0142";
+        case Command::ShortTrimB1: return "0106";
+        case Command::LongTrimB1: return "0107";
+        case Command::ShortTrimB2: return "0108";
+        case Command::LongTrimB2: return "0109";
+        case Command::Maf: return "0110";
         default: return nullptr;
     }
 }

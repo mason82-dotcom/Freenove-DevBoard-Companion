@@ -19,7 +19,10 @@ struct Value {
     uint32_t atMs = 0;
 };
 
-enum Pid : uint8_t { Rpm, Speed, Coolant, Intake, Load, Throttle, Voltage, kPidCount };
+enum Pid : uint8_t {
+    Rpm, Speed, Coolant, Intake, Load, Throttle, Voltage,
+    Maf, ShortTrimB1, LongTrimB1, ShortTrimB2, LongTrimB2, kPidCount
+};
 
 struct Snapshot {
     Link link = Link::NotConfigured;
@@ -39,6 +42,8 @@ bool requestActive(bool active);
 Snapshot read();
 // True if this build uses the ELM327 dongle's own access point.
 bool vehicleProfile();
+// Short vehicle title for the page header, or nullptr (generic profile).
+const char* vehicleTitle();
 // Pure, host-testable page text (no Arduino/LVGL).
 void format(const Snapshot& s, uint32_t nowMs, char* out, size_t capacity);
 }  // namespace Obd2Status

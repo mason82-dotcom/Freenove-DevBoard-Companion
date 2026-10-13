@@ -132,7 +132,7 @@ inline bool isSupported(uint32_t mask, uint8_t base, uint8_t pid) {
 
 // Number of data bytes and SAE J1979 scaling for the module's PIDs.
 inline size_t dataBytes(uint8_t pid) {
-    return pid == 0x0C || pid == 0x42 ? 2 : 1;
+    return pid == 0x0C || pid == 0x10 || pid == 0x42 ? 2 : 1;
 }
 inline bool decodeValue(uint8_t pid, const uint8_t* d, float& value) {
     switch (pid) {
@@ -140,6 +140,9 @@ inline bool decodeValue(uint8_t pid, const uint8_t* d, float& value) {
         case 0x05: case 0x0F: value = static_cast<float>(d[0]) - 40.0f; return true;  // C
         case 0x0C: value = ((d[0] << 8) | d[1]) / 4.0f; return true;  // rpm
         case 0x0D: value = d[0]; return true;  // km/h
+        case 0x06: case 0x07: case 0x08: case 0x09:  // fuel trim %, -100..+99.2
+            value = (static_cast<float>(d[0]) - 128.0f) * 100.0f / 128.0f; return true;
+        case 0x10: value = ((d[0] << 8) | d[1]) / 100.0f; return true;  // MAF g/s
         case 0x42: value = ((d[0] << 8) | d[1]) / 1000.0f; return true;  // V
         default: return false;
     }

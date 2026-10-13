@@ -218,7 +218,7 @@ void updateHermesDetails() {
 
 void updateObd2Details() {
     if (!obd2Label || !showing(CompanionModules::Id::Obd2)) return;
-    char text[256];
+    char text[320];
     Obd2Status::format(Obd2Status::read(), millis(), text, sizeof(text));
     lv_label_set_text(obd2Label, text);
 }
@@ -247,7 +247,12 @@ void showModule(uint8_t page) {
     const auto& module = CompanionModules::kModules[page - 1];
     lv_obj_t* back = makeButton(root, 8, 7, 74, 28, "< Zurueck", 0x25415D);
     lv_obj_add_event_cb(back, onBackClicked, LV_EVENT_CLICKED, nullptr);
-    newLabel(root, module.title, 95, 12, 0xF1F6FF);
+    if (module.id == CompanionModules::Id::Obd2 && Obd2Status::vehicleTitle()) {
+        lv_label_set_text_fmt(newLabel(root, "", 95, 12, 0xF1F6FF), "%s | %s",
+                              module.title, Obd2Status::vehicleTitle());
+    } else {
+        newLabel(root, module.title, 95, 12, 0xF1F6FF);
+    }
 
     lv_obj_t* panel = lv_obj_create(root);
     lv_obj_set_pos(panel, 10, 48);
@@ -274,9 +279,6 @@ void showModule(uint8_t page) {
     } else if (module.id == CompanionModules::Id::Obd2) {
         obd2Label = newLabel(panel, "ELM327 wird verbunden ...", 9, 0, 0x81DDBC);
         updateObd2Details();
-        newLabel(panel, Obd2Status::vehicleProfile()
-                            ? "Nur Lesen | Bedienung nur im Stillstand"
-                            : "Nur Lesen: Mode 01 | Laborprofil", 9, 104, 0x91A8C1);
     } else if (module.id == CompanionModules::Id::System) {
         statusLabel = newLabel(panel, "", 9, 42, 0x81DDBC);
         updateSystemDetails();
@@ -301,7 +303,14 @@ void showModule(uint8_t page) {
     } else {
         newLabel(panel, "Noch keine Verbindung / keine Befehle", 9, 51, 0x91A8C1);
     }
-    newLabel(root, "Nur lokale Anzeige | CFG1 320x240", 10, 212, 0x8EA8C1);
+    if (module.id == CompanionModules::Id::Obd2) {
+        // Seven data rows fill the panel; the read-only notice is the footer.
+        newLabel(root, Obd2Status::vehicleProfile()
+                           ? "Nur Lesen | nur im Stillstand bedienen"
+                           : "Nur Lesen (Mode 01) | Laborprofil", 10, 212, 0x8EA8C1);
+    } else {
+        newLabel(root, "Nur lokale Anzeige | CFG1 320x240", 10, 212, 0x8EA8C1);
+    }
 }
 } // namespace
 

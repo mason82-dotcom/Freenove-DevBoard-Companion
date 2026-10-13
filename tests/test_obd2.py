@@ -36,7 +36,8 @@ class Obd2Tests(unittest.TestCase):
         wires = re.findall(r'return "([^"]+)";', self.policy)
         self.assertEqual(sorted(wires), sorted([
             "ATZ", "ATE0", "ATL0", "ATS0", "ATH0", "ATSP0",
-            "0100", "0120", "0140", "0104", "0105", "010C", "010D", "010F", "0111", "0142"]))
+            "0100", "0120", "0140", "0104", "0105", "010C", "010D", "010F", "0111", "0142",
+            "0106", "0107", "0108", "0109", "0110"]))
         for forbidden in ('"04"', '"03"', '"07"', '"0A"', "ATSH", "ATMA", "ATCRA", '"08'):
             self.assertNotIn(forbidden, self.policy)
         # The client transmits exactly the policy string plus CR, nothing else.
@@ -119,7 +120,9 @@ class Obd2Tests(unittest.TestCase):
                 self.assertIn("ELM327", ask("ATZ"))
                 self.assertIn("OK", ask("ATE0"))
                 self.assertIn("SEARCHING...", ask("0100"))
-                self.assertIn("41 00 18 1A 80 01", ask("0100"))
+                self.assertIn("41 00 1F 9B 80 01", ask("0100"))
+                self.assertIn("41 09 87", ask("0109"))
+                self.assertIn("41 10 01 F4", ask("0110"))
                 self.assertRegex(ask("010C"), r"41 0C [0-9A-F]{2} [0-9A-F]{2}")
                 self.assertIn("41 42 34 BC", ask("0142"))
                 self.assertEqual(server.violations, 0)

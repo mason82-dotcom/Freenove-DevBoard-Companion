@@ -28,6 +28,11 @@ void value(char* out, size_t cap, const Snapshot& s, Pid pid, uint32_t now,
     else if (fresh) snprintf(out, cap, fmt, static_cast<double>(v.value));
     else snprintf(out, cap, "--");
 }
+// Display-only cap so the counter row fits; the serial log keeps exact values.
+void counter(char* out, size_t cap, uint32_t value, uint32_t limit) {
+    if (value > limit) snprintf(out, cap, "%lu+", static_cast<unsigned long>(limit));
+    else snprintf(out, cap, "%lu", static_cast<unsigned long>(value));
+}
 }  // namespace
 
 void format(const Snapshot& s, uint32_t now, char* out, size_t capacity) {
@@ -37,6 +42,7 @@ void format(const Snapshot& s, uint32_t now, char* out, size_t capacity) {
         return;
     }
     char rpm[12], speed[12], coolant[12], intake[12], load[12], throttle[12], volt[12];
+    char maf[14], st1[8], lt1[8], st2[8], lt2[8];
     value(rpm, sizeof(rpm), s, Rpm, now, "%.0f rpm");
     value(speed, sizeof(speed), s, Speed, now, "%.0f km/h");
     value(coolant, sizeof(coolant), s, Coolant, now, "%.0f C");
@@ -44,18 +50,28 @@ void format(const Snapshot& s, uint32_t now, char* out, size_t capacity) {
     value(load, sizeof(load), s, Load, now, "%.1f %%");
     value(throttle, sizeof(throttle), s, Throttle, now, "%.1f %%");
     value(volt, sizeof(volt), s, Voltage, now, "%.2f V");
+    value(maf, sizeof(maf), s, Maf, now, "%.1f g/s");
+    char tx[8], timeouts[8], errors[8];
+    counter(tx, sizeof(tx), s.tx, 99999);
+    counter(timeouts, sizeof(timeouts), s.timeouts, 99);
+    counter(errors, sizeof(errors), s.errors, 99);
+    // Whole percent keeps the two-bank line within the panel width.
+    value(st1, sizeof(st1), s, ShortTrimB1, now, "%+.0f");
+    value(lt1, sizeof(lt1), s, LongTrimB1, now, "%+.0f");
+    value(st2, sizeof(st2), s, ShortTrimB2, now, "%+.0f");
+    value(lt2, sizeof(lt2), s, LongTrimB2, now, "%+.0f");
     snprintf(out, capacity,
              "ELM327: %s%s%s\n"
              "Drehzahl: %s | Tempo: %s\n"
              "Kuehlmittel: %s | Ansaug: %s\n"
              "Last: %s | Drossel: %s\n"
-             "Spannung: %s\n"
-             "TX: %lu | Timeouts: %lu | Fehler: %lu",
+             "Spannung: %s | MAF: %s\n"
+             "Trim B1: %s/%s B2: %s/%s %%\n"
+             "TX: %s | Timeouts: %s | Fehler: %s",
              linkText(s.link, s.vehicleProfile),
              s.link == Link::Live && s.adapter[0] ? " | " : "",
              s.link == Link::Live ? s.adapter : "",
-             rpm, speed, coolant, intake, load, throttle, volt,
-             static_cast<unsigned long>(s.tx), static_cast<unsigned long>(s.timeouts),
-             static_cast<unsigned long>(s.errors));
+             rpm, speed, coolant, intake, load, throttle, volt, maf,
+             st1, lt1, st2, lt2, tx, timeouts, errors);
 }
 }  // namespace Obd2Status
