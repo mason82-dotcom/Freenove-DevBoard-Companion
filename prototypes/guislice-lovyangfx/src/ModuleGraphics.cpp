@@ -8,7 +8,9 @@
 // The blue/green/coral visual language follows the source PulsOxMonitor.
 // Every visualization explicitly distinguishes real samples from placeholders.
 namespace {
-static gslc_tsElemRef* canvases[CompanionModules::kModuleCount] = {};\nstatic gslc_tsElemRef* pulseWaveCanvas = nullptr;\nstatic int8_t lastHeartState = -1;
+static gslc_tsElemRef* canvases[CompanionModules::kModuleCount] = {};
+static gslc_tsElemRef* pulseWaveCanvas = nullptr;
+static int8_t lastHeartState = -1;
 static uint32_t heapHistory[72] = {};
 static uint8_t heapCount = 0, heapHead = 0;
 static const gslc_tsColor bg = {10, 17, 29};
@@ -69,7 +71,11 @@ void pulseHeart(gslc_tsGui* g, gslc_tsRect r) {
         line(g, cx - hw, heartTop + y, cx + hw, heartTop + y, heartColor);
     }
 
-}\nvoid pulseWave(gslc_tsGui* g, gslc_tsRect r) {\n    const PulsOx::Snapshot s = PulsOx::read();\n    const bool active = s.running && s.sensorOk && s.finger;\n    // Original PulsOxMonitor uses an IR ring buffer and a 320x86 sprite.
+}
+void pulseWave(gslc_tsGui* g, gslc_tsRect r) {
+    const PulsOx::Snapshot s = PulsOx::read();
+    const bool active = s.running && s.sensorOk && s.finger;
+    // Original PulsOxMonitor uses an IR ring buffer and a 320x86 sprite.
     // This condensed 320x240 variant uses 128 samples rendered entirely
     // through GUIslice: no second graphics driver or unguarded I2C reads.
     uint16_t samples[128]={};
@@ -171,7 +177,18 @@ namespace ModuleGraphics {
 void bind(uint8_t index,gslc_tsElemRef* canvas){
     if(index<CompanionModules::kModuleCount)canvases[index]=canvas;
 }
-void bindPulseWave(gslc_tsElemRef* canvas) { pulseWaveCanvas = canvas; }\nvoid resetPulseHeart() { lastHeartState = -1; }\nvoid refreshPulse(gslc_tsGui* gui) {\n    if (pulseWaveCanvas) gslc_ElemSetRedraw(gui,pulseWaveCanvas,GSLC_REDRAW_FULL);\n    const PulsOx::Snapshot s = PulsOx::read();\n    const int8_t state = (s.running && s.sensorOk && s.finger) ? 1 : 0;\n    if (state != lastHeartState) {\n        lastHeartState = state;\n        if (canvases[5]) gslc_ElemSetRedraw(gui,canvases[5],GSLC_REDRAW_FULL);\n    }\n}\nvoid sampleSystem(uint32_t heap) {
+void bindPulseWave(gslc_tsElemRef* canvas) { pulseWaveCanvas = canvas; }
+void resetPulseHeart() { lastHeartState = -1; }
+void refreshPulse(gslc_tsGui* gui) {
+    if (pulseWaveCanvas) gslc_ElemSetRedraw(gui,pulseWaveCanvas,GSLC_REDRAW_FULL);
+    const PulsOx::Snapshot s = PulsOx::read();
+    const int8_t state = (s.running && s.sensorOk && s.finger) ? 1 : 0;
+    if (state != lastHeartState) {
+        lastHeartState = state;
+        if (canvases[5]) gslc_ElemSetRedraw(gui,canvases[5],GSLC_REDRAW_FULL);
+    }
+}
+void sampleSystem(uint32_t heap) {
     heapHistory[heapHead]=heap;
     heapHead=(heapHead+1)%72;
     if(heapCount<72)++heapCount;
@@ -191,7 +208,8 @@ bool draw(void* pvGui,void* pvElemRef,gslc_teRedrawType) {
     const gslc_tsRect r=gslc_ElemGetRect(g,ref);
     gslc_DrawFillRect(g,r,bg);
     gslc_DrawFrameRect(g,r,grid);
-    if (ref == pulseWaveCanvas) { pulseWave(g,r); return true; }\n    switch(CompanionModules::kModules[index].id){
+    if (ref == pulseWaveCanvas) { pulseWave(g,r); return true; }
+    switch(CompanionModules::kModules[index].id){
         case CompanionModules::Id::Hermes: hermes(g,r);break;
         case CompanionModules::Id::Webradio: radio(g,r);break;
         case CompanionModules::Id::Obd2: obd(g,r);break;
