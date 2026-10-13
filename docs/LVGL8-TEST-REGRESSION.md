@@ -107,3 +107,13 @@ Geflasht auf `/dev/ttyACM0` (SER `58FC003021`) nach Freigabe durch den Nutzer; U
 - Seite: 7 Datenzeilen (u. a. „Spannung | MAF“, „Trim B1: kurz/lang B2: kurz/lang %“); der Read-only-Hinweis steht in der Fußzeile. Zähleranzeige begrenzt (TX `99999+`, Timeouts/Fehler `99+`), Worst-Case-Test: jede Zeile ≤ 40 Zeichen.
 - Praxis: Dongle bei abgestelltem Fahrzeug abziehen (Dauerstromverbrauch). Erste Tests nur im Stillstand mit Zündung an.
 - Tests: 45 bestanden. Builds Labor, Fahrzeug, Fahrzeug+C350 und ohne Konfiguration: **SUCCESS**. **Nicht am Fahrzeug geprüft**; Dongle-SSID noch unbekannt.
+
+
+## Webradio-Modul (13.10.2026)
+
+- Quelle: hochgeladenes Projekt `ESP32-S3-Webradio` (nur gelesen, in isoliertem Ordner entpackt). Portiert: `radio_engine` → `src/RadioEngine.cpp` (eigener Audio-Task auf Core 1, Prio 2; Befehls-/Ereignis-Queues mit Generationsnummer; 15-s-Verbindungs-Timeout; HTTP 3 s/HTTPS 5 s), Neustartlogik → `src/WebradioPlayer.cpp` (3 Versuche im 3-s-Abstand, wartet auf das Heim-WLAN), Senderliste (44 Sender) → `include/WebradioStations.h`.
+- Nicht portiert: Webinterface (Port 80), OTA, SD-Aufnahme, Wecker, Equalizer, NVS-Einstellungen, Verstärker-SD-Pin (im Original erzeugte `AMP_SD_PIN -1` die `IO 255`-Fehler im Boot-Log).
+- Bibliothek: `ESP32-audioI2S` per Git-Tag `3.4.7` gepinnt. `esp_dsp.h` stammt aus dem Arduino-3.3.9-Framework (`libespressif__esp-dsp.a`); der eigene esp-dsp-Shim des Originalprojekts ist hier nicht nötig. Zusätzliche Framework-Bibliotheken (FS, SD, SD_MMC, FFat, SPI) und `-I…/FS/src` nur, weil `Audio.h` deren Header einbindet.
+- Seite: Sender (n/44), Titel als Lauftext (Text nur bei Änderung gesetzt, sonst springt die Animation), Status („Wiedergabe | 128 kbps MP3“), Tasten ◀ / Play-Stop / ▶ / − / +, Lautstärke 0–21. Montserrat 12 enthält keine Umlaute; Sonderzeichen in Titeln werden nicht dargestellt.
+- Tests: 50 bestanden (`tests/test_webradio.py`, `tests/webradio_smoke.cpp`: UTF-8-Kürzung, Statustexte, Senderliste; Engine ohne LVGL, UI ohne Audio-Objekt, keine Server-/NVS-/SD-Zugriffe). Build mit und ohne lokale Konfiguration **SUCCESS** (RAM 43,9 %, Flash 72,2 %).
+- **Nicht auf dem Board geprüft**, kein Audiotest.
