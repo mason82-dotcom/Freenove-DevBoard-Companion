@@ -66,6 +66,32 @@ inline bool contains(const char* text, const char* word) {
     return false;
 }
 
+// Copies the "ELM327 vX.Y" identification from an ATZ reply, without any
+// vendor suffix in parentheses, truncated to fit one display line.
+constexpr size_t kAdapterIdMax = 15;
+inline bool adapterId(const char* reply, char* out, size_t capacity) {
+    if (!out || capacity == 0) return false;
+    out[0] = '\0';
+    if (!reply) return false;
+    const char* id = nullptr;
+    static const char kTag[] = "ELM327";
+    for (size_t i = 0; reply[i] != '\0' && i < 512 && id == nullptr; ++i) {
+        size_t k = 0;
+        while (kTag[k] != '\0' && reply[i + k] == kTag[k]) ++k;
+        if (kTag[k] == '\0') id = reply + i;
+    }
+    if (!id) return false;
+    size_t n = 0;
+    while (id[n] && id[n] != '\r' && id[n] != '\n' && id[n] != '(' &&
+           n < kAdapterIdMax && n + 1 < capacity) {
+        out[n] = id[n];
+        ++n;
+    }
+    while (n > 0 && out[n - 1] == ' ') --n;
+    out[n] = '\0';
+    return n > 0;
+}
+
 // Mode 01 reply "41 PP A [B]" for pid; first matching ECU line wins.
 inline bool readPid(const char* reply, uint8_t pid, uint8_t* out, size_t count) {
     if (!out || count == 0 || count > 4) return false;

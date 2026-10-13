@@ -61,6 +61,20 @@ int main() {
     assert(!decodeValue(0x01, pct, v));
     assert(dataBytes(0x0C) == 2 && dataBytes(0x42) == 2 && dataBytes(0x0D) == 1);
 
+    // Adapter id: vendor suffix dropped, bounded length.
+    char id[24];
+    assert(adapterId("ATZ\r\rELM327 v1.5 (LAB SIM)\r\r", id, sizeof(id)) &&
+           std::strcmp(id, "ELM327 v1.5") == 0);
+    assert(adapterId("ELM327 v2.1\r", id, sizeof(id)) && std::strcmp(id, "ELM327 v2.1") == 0);
+    assert(adapterId("ELM327 v1.5 extremely long clone name", id, sizeof(id)) &&
+           std::strlen(id) <= kAdapterIdMax);
+    assert(adapterId("ATE0 echo\rELM327 v1.4b\r", id, sizeof(id)) &&
+           std::strcmp(id, "ELM327 v1.4b") == 0);              // earlier 'E' ignored
+    assert(!adapterId("OK\r", id, sizeof(id)) && id[0] == '\0');
+    assert(!adapterId("ELM32", id, sizeof(id)));
+    char small[4];
+    assert(adapterId("ELM327 v1.5", small, sizeof(small)) && std::strcmp(small, "ELM") == 0);
+
     // Formatter.
     char text[256];
     Obd2Status::Snapshot s;

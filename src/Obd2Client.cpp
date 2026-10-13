@@ -107,21 +107,10 @@ void setLink(Snapshot& s, Link link) {
     publish(s);
 }
 
-void captureAdapterId(Snapshot& s) {
-    const char* id = strstr(reply, "ELM327");
-    if (id == nullptr) return;
-    size_t n = 0;
-    while (id[n] && id[n] != '\r' && id[n] != '\n' && n + 1 < sizeof(s.adapter)) {
-        s.adapter[n] = id[n];
-        ++n;
-    }
-    s.adapter[n] = '\0';
-}
-
 bool initializeAdapter(Snapshot& s) {
     setLink(s, Link::Initializing);
     if (!countFailure(exchange(Command::AdapterReset, kResetTimeoutMs, s), s)) return false;
-    captureAdapterId(s);
+    Obd2Response::adapterId(reply, s.adapter, sizeof(s.adapter));
     for (Command c : {Command::AdapterEchoOff, Command::AdapterLinesOff,
                       Command::AdapterSpacesOff, Command::AdapterHeadersOff,
                       Command::AdapterAutoProtocol}) {
