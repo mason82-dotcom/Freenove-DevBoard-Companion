@@ -8,7 +8,7 @@
 // The blue/green/coral visual language follows the source PulsOxMonitor.
 // Every visualization explicitly distinguishes real samples from placeholders.
 namespace {
-static gslc_tsElemRef* canvases[CompanionModules::kModuleCount] = {};
+static gslc_tsElemRef* canvases[CompanionModules::kModuleCount] = {};\nstatic gslc_tsElemRef* pulseWaveCanvas = nullptr;\nstatic int8_t lastHeartState = -1;
 static uint32_t heapHistory[72] = {};
 static uint8_t heapCount = 0, heapHead = 0;
 static const gslc_tsColor bg = {10, 17, 29};
@@ -38,14 +38,14 @@ void bar(gslc_tsGui* g, int16_t x, int16_t y, int16_t width,
         gslc_DrawFillRect(g, {x,y,used,height}, color);
     }
 }
-void pulse(gslc_tsGui* g, gslc_tsRect r) {
+void pulseHeart(gslc_tsGui* g, gslc_tsRect r) {
     // Separate read-only snapshot; never reads Wire on the GUI thread.
     const PulsOx::Snapshot s = PulsOx::read();
     const bool active = s.running && s.sensorOk && s.finger;
     // Compact symmetric heart, fully contained within the left 66 px of
     // the 294x84 canvas. No overlapping circles or scanlines beyond bounds.
     // This icon is deliberately static: do not repaint it at 8 FPS.
-    const int16_t cx = r.x + 35;
+    const int16_t cx = r.x + r.w / 2;
     const int16_t heartTop = r.y + 15;
     const gslc_tsColor heartColor = active ? red : muted;
     // Fill with horizontal strokes bounded by the heart silhouette.
@@ -69,7 +69,7 @@ void pulse(gslc_tsGui* g, gslc_tsRect r) {
         line(g, cx - hw, heartTop + y, cx + hw, heartTop + y, heartColor);
     }
 
-    // Original PulsOxMonitor uses an IR ring buffer and a 320x86 sprite.
+}\nvoid pulseWave(gslc_tsGui* g, gslc_tsRect r) {\n    const PulsOx::Snapshot s = PulsOx::read();\n    const bool active = s.running && s.sensorOk && s.finger;\n    // Original PulsOxMonitor uses an IR ring buffer and a 320x86 sprite.
     // This condensed 320x240 variant uses 128 samples rendered entirely
     // through GUIslice: no second graphics driver or unguarded I2C reads.
     uint16_t samples[128]={};
@@ -80,7 +80,7 @@ void pulse(gslc_tsGui* g, gslc_tsRect r) {
         if(samples[i]>hi)hi=samples[i];
     }
     const uint32_t span=(hi>lo && hi-lo>=40) ? hi-lo : 40;
-    const int16_t left=r.x+76, width=r.w-86, top=r.y+10, height=r.h-20;
+    const int16_t left=r.x+2, width=r.w-5, top=r.y+10, height=r.h-20;
     line(g,left,top+height/2,left+width,top+height/2,grid);
     if (!active || count<2) return; // no fake oxygen waveform
     for(uint16_t i=1;i<count;++i) {
@@ -171,7 +171,7 @@ namespace ModuleGraphics {
 void bind(uint8_t index,gslc_tsElemRef* canvas){
     if(index<CompanionModules::kModuleCount)canvases[index]=canvas;
 }
-void sampleSystem(uint32_t heap) {
+void bindPulseWave(gslc_tsElemRef* canvas) { pulseWaveCanvas = canvas; }\nvoid resetPulseHeart() { lastHeartState = -1; }\nvoid refreshPulse(gslc_tsGui* gui) {\n    if (pulseWaveCanvas) gslc_ElemSetRedraw(gui,pulseWaveCanvas,GSLC_REDRAW_FULL);\n    const PulsOx::Snapshot s = PulsOx::read();\n    const int8_t state = (s.running && s.sensorOk && s.finger) ? 1 : 0;\n    if (state != lastHeartState) {\n        lastHeartState = state;\n        if (canvases[5]) gslc_ElemSetRedraw(gui,canvases[5],GSLC_REDRAW_FULL);\n    }\n}\nvoid sampleSystem(uint32_t heap) {
     heapHistory[heapHead]=heap;
     heapHead=(heapHead+1)%72;
     if(heapCount<72)++heapCount;
@@ -187,17 +187,17 @@ bool draw(void* pvGui,void* pvElemRef,gslc_teRedrawType) {
     uint8_t index=0xff;
     for(uint8_t i=0;i<CompanionModules::kModuleCount;++i)
         if(canvases[i]==ref) {index=i;break;}
-    if(index==0xff)return false;
+    if(index==0xff && ref != pulseWaveCanvas)return false;
     const gslc_tsRect r=gslc_ElemGetRect(g,ref);
     gslc_DrawFillRect(g,r,bg);
     gslc_DrawFrameRect(g,r,grid);
-    switch(CompanionModules::kModules[index].id){
+    if (ref == pulseWaveCanvas) { pulseWave(g,r); return true; }\n    switch(CompanionModules::kModules[index].id){
         case CompanionModules::Id::Hermes: hermes(g,r);break;
         case CompanionModules::Id::Webradio: radio(g,r);break;
         case CompanionModules::Id::Obd2: obd(g,r);break;
         case CompanionModules::Id::Drone: drone(g,r);break;
         case CompanionModules::Id::System: sys(g,r);break;
-        case CompanionModules::Id::PulseOx: pulse(g,r);break;
+        case CompanionModules::Id::PulseOx: pulseHeart(g,r);break;
     }
     return true;
 }
