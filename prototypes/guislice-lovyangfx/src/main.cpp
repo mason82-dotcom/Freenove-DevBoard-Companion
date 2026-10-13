@@ -163,10 +163,20 @@ bool buildGui() {
                      const_cast<char*>(CompanionModules::kModules[i].detail))) return false;
         // Each module owns a native GUIslice graphics canvas.
         canvasRefs[i] = gslc_ElemCreateBox(&gui, GSLC_ID_AUTO,
-                                             page, {12, 65, 294, 84});
+                                             page, i == 5 ? gslc_tsRect{12, 65, 74, 84}
+                                                          : gslc_tsRect{12, 65, 294, 84});
         if (!canvasRefs[i]) return false;
         ModuleGraphics::bind(i, canvasRefs[i]);
         gslc_ElemSetDrawFunc(&gui, canvasRefs[i], &ModuleGraphics::draw);
+        if (i == 5) {
+            // Static heart and dynamic waveform are independent elements.
+            gslc_ElemSetRect(&gui, canvasRefs[i], {12, 65, 74, 84});
+            auto* wave = gslc_ElemCreateBox(&gui, GSLC_ID_AUTO,
+                                             page, {86, 65, 220, 84});
+            if (!wave) return false;
+            ModuleGraphics::bindPulseWave(wave);
+            gslc_ElemSetDrawFunc(&gui, wave, &ModuleGraphics::draw);
+        }
         // Live values remain in independent, persistent GUIslice text rows.
         // The callback re-renders the canvas without another TFT driver.
         for (uint8_t row = 0; row < kStatusRows; ++row) {
@@ -227,6 +237,7 @@ void loop() {
                                                           : "WORKER UNAVAILABLE");
             }
             currentPage = nextPage;
+            if (currentPage == kPulsOxPage) ModuleGraphics::resetPulseHeart();
             if (currentPage > 0) updateModule(currentPage - 1, now);
             gslc_SetPageCur(&gui, currentPage);
             lastStatusMs = now;
@@ -240,11 +251,12 @@ void loop() {
             if (currentPage == 5) ModuleGraphics::sampleSystem(ESP.getFreeHeap());
             ModuleGraphics::refresh(&gui, currentPage - 1);
         }
-        // Pulse waveform: 4 FPS reduces ST7789 full-canvas redraw flicker.\n        // No direct Wire access on the UI task.
+        // Pulse waveform: 4 FPS reduces ST7789 full-canvas redraw flicker.
+        // No direct Wire access on the UI task.
         static uint32_t lastPulseCanvasMs = 0;
         if (currentPage == 6 && now - lastPulseCanvasMs >= 250) {
             lastPulseCanvasMs = now;
-            ModuleGraphics::refresh(&gui, 5);
+            ModuleGraphics::refreshPulse(&gui);
         }
     }
     const uint32_t now = millis();
