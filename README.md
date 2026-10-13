@@ -10,7 +10,7 @@ Companion-Dashboard für das Freenove ESP32-S3 FNK0086 mit **LVGL 8.3.11**, **TF
 | --- | --- |
 | Hermes | Read-only HTTPS-Status (CA-verifiziert, Token-Header, nur GET). Letzter gültiger Stand bleibt bei Fehlern sichtbar und wird nach 15 s als veraltet ausgeblendet. Zeigt WLAN-Pegel bzw. HTTP-Fehler mit Zähler |
 | Webradio | Navigierbare Platzhalterseite; Audio noch nicht aktiv |
-| OBD2 | Navigierbare Platzhalterseite; keine Fahrzeugkommunikation |
+| OBD2 | Read-only ELM327 über WLAN/TCP (Laborprofil): Drehzahl, Tempo, Kühlmittel, Ansaugluft, Last, Drossel, Spannung; feste Allowlist (Adapter-Setup + Mode 01), keine Fehlercodes, kein Löschen. Sitzung nur bei geöffneter Seite. Noch nicht am Fahrzeug geprüft |
 | Drohne | Navigierbare Platzhalterseite; keine Telemetrieverbindung |
 | System | Lokale Livewerte: Uptime, freier/minimaler Heap, größter Block, PSRAM, CPU-Takt, WLAN-Pegel |
 | PulsOx | MAX30102-Sensoranbindung mit eigenem Worker, Start/Stopp beim Öffnen/Schließen, Fingerstatus, Puls, SpO₂ und auto-skalierte IR-Pulskurve (4 s) |
@@ -49,6 +49,16 @@ Zuletzt bestätigter GitHub-Actions-Lauf: [38450901771](https://github.com/mason
 - [LVGL-Boot-/Crash-Analyse](docs/LVGL-BOOT-CRASH.md)
 
 Frühere Hardwareprüfungen und Diagnoseprotokolle sind Teil der Projektgeschichte; die automatisierten LVGL-8-Tests sind **keine erneute physische Hardwareabnahme**. Hardwaretests wurden bereits im Projektverlauf durchgeführt. Neue Firmwareänderungen sollten bei Bedarf gezielt und nicht pauschal erneut geprüft werden.
+
+## OBD2-Labortest
+
+`include/Obd2LocalConfig.example.h` nach `include/Obd2LocalConfig.h` kopieren (git-ignoriert) und Host/Port eintragen. Das WLAN stellt der Hermes-Worker bereit. Simulator auf dem Pi:
+
+```bash
+python3 tools/elm327_lab_sim.py --bind <Pi-LAN-IP> --port 35000
+```
+
+Der Simulator protokolliert jeden empfangenen Befehl und meldet alles außerhalb der Allowlist als `POLICY VIOLATION`. Ein echter WLAN-ELM327 spannt ein eigenes Netz auf (meist `192.168.0.10`) und braucht ein eigenes Fahrzeugprofil, das noch nicht umgesetzt ist.
 
 ## Entwicklungshinweise
 

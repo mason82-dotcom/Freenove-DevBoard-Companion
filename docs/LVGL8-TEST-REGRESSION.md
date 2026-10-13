@@ -68,3 +68,14 @@ Geflasht auf `/dev/ttyACM0` (SER `58FC003021`) nach Freigabe durch den Nutzer; U
 - **Displayfotos (Nutzer):** System- und Hermes-Seite zeigen alle fünf Zeilen vollständig im Panel; PulsOx-Layout (Zeilen, Kurve, Hinweis) passt.
 - **PulsOx-Kurve korrigiert:** Ohne Finger hat die Auto-Skalierung die langsame IR-Drift als große Rampe dargestellt. Die Kurve wird jetzt nur bei erkanntem Finger gezeichnet und vorher mit einem zentrierten gleitenden 1-s-Mittelwert hochpassgefiltert (`PulsOx::detrendTrace()`, nativ getestet: Rampe bleibt flach, Pulse auf Drift erreichen volle Skala).
 - Tests: 38 bestanden. Build: SUCCESS (RAM 39,8 %, Flash 40,0 %). Mit aufgelegtem Finger vom Nutzer per Foto bestätigt: „Finger: erkannt“, regelmäßige Pulskurve ohne Driftrampe (ca. 5 Spitzen in 4 s). Nach kurzer Anlaufzeit (≥ 2 Schläge bzw. 4-s-SpO₂-Fenster) erscheinen Puls- und SpO₂-Werte (Nutzerbestätigung). Werte bleiben Demonstration, kein Medizinprodukt.
+
+
+## OBD2 read-only Modul (13.10.2026)
+
+- `include/Obd2Policy.h`: geschlossene Allowlist, beim Kompilieren geprüft. Adapter: `ATZ ATE0 ATL0 ATS0 ATH0 ATSP0`; Fahrzeug: nur exakt `01PP` (`0100 0120 0140 0104 0105 010C 010D 010F 0111 0142`). Keine Mode 03/04/07/08/0A, kein `ATSH`/`ATMA`, keine frei eingebbaren Befehle.
+- `include/Obd2Response.h`: strenger Parser (Echo, `SEARCHING...`, Header, geteilte Bytes, `NO DATA`, `?` werden nicht als Daten akzeptiert); SAE-J1979-Skalierung.
+- `src/Obd2Client.cpp`: Worker auf Core 0, nur bei geöffneter OBD2-Seite aktiv; Antwortpuffer 512 Byte, Timeouts je Befehl (Suche 12 s, sonst 2 s), Neuverbindung nach 5 Fehlern in Folge. Sendet ausschließlich `wireCommand()` + CR.
+- `src/Obd2Display.cpp`: Seitentext; Werte älter als 5 s oder ohne Live-Verbindung als `--`, nicht unterstützte PIDs als `n/v`.
+- `tools/elm327_lab_sim.py`: eigener Laborsimulator mit Befehlsprotokoll und Policy-Verletzungszähler.
+- Tests: `tests/test_obd2.py` + `tests/obd2_smoke.cpp` (Allowlist, Parser, Bitmap, Skalierung, Formatter, Simulator). **43 Tests bestanden.** Build mit und ohne `Obd2LocalConfig.h`: **SUCCESS** (RAM 40,0 %, Flash 40,2 %).
+- **Noch nicht auf dem Board geprüft**, kein Fahrzeugtest.
