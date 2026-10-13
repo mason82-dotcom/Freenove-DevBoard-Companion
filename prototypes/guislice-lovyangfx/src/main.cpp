@@ -57,8 +57,7 @@ class FnkTouchHandler : public TouchHandler {
 public:
     void begin() override {
         const bool ok = BoardTouch::begin();
-        Serial.printf("FT6336U probe: %s
-", ok ? "FOUND" : "MISSING");
+        Serial.printf("FT6336U probe: %s\n", ok ? "FOUND" : "MISSING");
     }
 
     THPoint getPoint() override {
@@ -134,8 +133,7 @@ bool buildGui() {
     gslc_SetBkgndColor(&gui, GSLC_COL_BLACK);
 
     if (gui.nDispW != 320 || gui.nDispH != 240) {
-        Serial.printf("ERROR: GUI display is %dx%d, required 320x240
-",
+        Serial.printf("ERROR: GUI display is %dx%d, required 320x240\n",
                       gui.nDispW, gui.nDispH);
         return false;
     }
@@ -212,12 +210,10 @@ void setup() {
     // SharedI2C is established by FT6336U begin() during GUI init.
     // Sensor failure never prevents the five other pages from working.
     if (initialized) {
-        Serial.printf("PulsOx worker: %s
-",
+        Serial.printf("PulsOx worker: %s\n",
                       PulsOx::begin() ? "STARTED" : "OFFLINE");
     }
-    Serial.printf("GUI BOOT: %s, display=320x240, modules=%u
-",
+    Serial.printf("GUI BOOT: %s, display=320x240, modules=%u\n",
                   initialized ? "OK" : "FAIL",
                   static_cast<unsigned>(CompanionModules::kModuleCount));
 }
@@ -237,8 +233,7 @@ void loop() {
                 PulsOx::requestActive(false);
                 Serial.println("UI PulsOx: STOP REQUESTED");
             } else if (currentPage != kPulsOxPage && nextPage == kPulsOxPage) {
-                Serial.printf("UI PulsOx: %s
-",
+                Serial.printf("UI PulsOx: %s\n",
                               PulsOx::requestActive(true) ? "START REQUESTED"
                                                           : "WORKER UNAVAILABLE");
             }
@@ -248,8 +243,7 @@ void loop() {
             gslc_SetPageCur(&gui, currentPage);
             lastStatusMs = now;
             if (currentPage > 0) ModuleGraphics::refresh(&gui, currentPage - 1);
-            Serial.printf("UI NAV: %s
-", currentPage == 0 ? "Home" :
+            Serial.printf("UI NAV: %s\n", currentPage == 0 ? "Home" :
                  CompanionModules::kModules[currentPage - 1].title);
         }
         if (currentPage > 0 && now - lastStatusMs >= 1000) {
@@ -269,8 +263,7 @@ void loop() {
     const uint32_t now = millis();
     if (now - lastHeartbeatMs >= 2000) {
         lastHeartbeatMs = now;
-        Serial.printf("GUI heartbeat: uptime=%lu heap=%u psram=%u
-",
+        Serial.printf("GUI heartbeat: uptime=%lu heap=%u psram=%u\n",
                       static_cast<unsigned long>(now),
                       static_cast<unsigned>(ESP.getFreeHeap()),
                       static_cast<unsigned>(ESP.getFreePsram()));
