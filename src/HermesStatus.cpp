@@ -7,6 +7,8 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <cstring>
+#include <memory>
+#include <new>
 
 #if __has_include("HermesLocalConfig.h")
 #include "HermesLocalConfig.h"
@@ -51,33 +53,44 @@ void query() {
         publish(s);
         return;
     }
-    WiFiClientSecure client;
-    client.setCACert(HERMES_CA_PEM);
-    client.setTimeout(4);
-    HTTPClient http;
-    const String url = String("https://") + HERMES_SERVER_HOST + ":" +
-                       String(HERMES_SERVER_PORT) + "/v1/status";
-    if (!http.begin(client, url)) {
+    auto client = std::unique_ptr<WiFiClientSecure>(new (std::nothrow) WiFiClientSecure());
+    auto http = std::unique_ptr<HTTPClient>(new (std::nothrow) HTTPClient());
+    if (!client || !http) {
+        Serial.println("Hermes: network object allocation failed");
         publish(s);
         return;
     }
-    http.setTimeout(4000);
-    http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
-    http.addHeader("X-Hermes-Touch-Token", HERMES_DEVICE_TOKEN);
+    client->setCACert(HERMES_CA_PEM);
+    client->setTimeout(4);
+    const String url = String("https://") + HERMES_SERVER_HOST + ":" +
+                       String(HERMES_SERVER_PORT) + "/v1/status";
+    if (!http->begin(*client, url)) {
+        publish(s);
+        return;
+    }
+    http->setTimeout(4000);
+    http->setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
+    http->addHeader("X-Hermes-Touch-Token", HERMES_DEVICE_TOKEN);
     http.addHeader("Accept", "application/json");
-    s.httpCode = http.GET();
+    s.httpCode = http->GET();
     if (s.httpCode == HTTP_CODE_OK) {
-        const int length = http.getSize();
+        const int length = http->getSize();
         if (length > 0 && length <= static_cast<int>(kMaxBody)) {
             // Reject unknown/chunked lengths; never parse an unbounded stream.
             // A fixed-size input buffer caps memory regardless of response data.
-            char body[kMaxBody + 1];
-            Stream& stream = http.getStream();
-            const size_t received = stream.readBytes(body, static_cast<size_t>(length));
+            auto body = std::unique_ptr<char[]>(new (std::nothrow) char[static_cast<size_t>(length) + 1]);
+            if (!body) {
+                Serial.println("Hermes: response buffer allocation failed");
+                http->end();
+                publish(s);
+                return;
+            }
+            Stream& stream = http->getStream();
+            const size_t received = stream.readBytes(body.get(), static_cast<size_t>(length));
             body[received] = 0;
             JsonDocument doc;
             DeserializationError error = received == static_cast<size_t>(length)
-                ? deserializeJson(doc, body, received, DeserializationOption::NestingLimit(6))
+                ? deserializeJson(doc, body.get(), received, DeserializationOption::NestingLimit(6))
                 : DeserializationError::IncompleteInput;
             if (!error && getBool(doc["ok"]) && doc["schema_version"].as<int>() == 1) {
                 JsonVariantConst sys = doc["system"];
@@ -104,7 +117,12 @@ void query() {
             }
         }
     }
-    http.end();
+    http->end();
+    Serial.printf("Hermes: wifi=%d http=%d valid=%d fresh=%d stack_free=%u heap=%u\\n",
+                  static_cast<int>(s.connected), s.httpCode, static_cast<int>(s.valid),
+                  static_cast<int>(s.fresh),
+                  static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)),
+                  static_cast<unsigned>(ESP.getFreeHeap()));
     publish(s);
 }
 
