@@ -163,15 +163,52 @@ void hermes(gslc_tsGui* g,gslc_tsRect r) {
     }
     // Deliberately inactive until the separate opt-in TLS branch is merged.
 }
-void radio(gslc_tsGui* g,gslc_tsRect r) {
-    const int16_t cy=r.y+r.h-15;
-    for(int i=0;i<12;++i){
-        const int16_t x=r.x+35+i*21;
-        const int16_t h=14+((i*7)%30);
-        // Muted stationary equalizer: NOT live sound or an active stream.
-        gslc_DrawFillRect(g,{x,static_cast<int16_t>(cy-h),10,h},grid);
-    }
-    line(g,r.x+20,cy+2,r.x+r.w-20,cy+2,muted);
+void radio(gslc_tsGui* g, gslc_tsRect r) {
+    // Landscape adaptation of ESP32-S3-Webradio's LVGL Amber player.
+    // Presentation only: no stream, volume, codec, or WiFi state is invented.
+    const gslc_tsColor card = {27,32,40};       // source UI_COL_CARD
+    const gslc_tsColor orange = {255,160,46};   // source UI_COL_ACCENT
+    const gslc_tsColor teal = {58,176,162};     // source UI_COL_ACCENT2
+    const gslc_tsColor gray = {138,145,158};    // source UI_COL_MUTED
+    const int16_t left = r.x + 5;
+    const int16_t top = r.y + 5;
+    const int16_t w = r.w - 10;
+    // Main player card, a slim accent rail and metadata placeholders.
+    gslc_DrawFillRect(g, {left, top, static_cast<uint16_t>(w), 31}, card);
+    gslc_DrawFillRect(g, {left, top, 3, 31}, orange);
+    line(g, left+12, top+11, left+110, top+11, gray);
+    line(g, left+12, top+19, left+78, top+19, grid);
+    // A neutral status indicator: not a live codec or bitrate badge.
+    gslc_DrawFrameRect(g, {static_cast<int16_t>(left+w-55), top+7, 46, 17}, teal);
+    line(g, left+w-45, top+15, left+w-20, top+15, gray);
+
+    // Source player transport row: previous / play / stop / next.
+    // These are intentionally disabled artwork until audio is connected.
+    const int16_t cy = top + 50;
+    const int16_t xs[4] = {static_cast<int16_t>(left+46),
+                            static_cast<int16_t>(left+110),
+                            static_cast<int16_t>(left+174),
+                            static_cast<int16_t>(left+238)};
+    for (int i=0;i<4;++i) gslc_DrawFrameCircle(g,xs[i],cy,17,gray);
+    // Previous: vertical bar and left-facing triangle outline.
+    line(g,xs[0]-7,cy-6,xs[0]-7,cy+6,gray);
+    line(g,xs[0]+6,cy-7,xs[0]-4,cy,gray);
+    line(g,xs[0]-4,cy,xs[0]+6,cy+7,gray);
+    line(g,xs[0]+6,cy+7,xs[0]+6,cy-7,gray);
+    // Play: the original player accent color.
+    line(g,xs[1]-5,cy-8,xs[1]+7,cy,orange);
+    line(g,xs[1]+7,cy,xs[1]-5,cy+8,orange);
+    line(g,xs[1]-5,cy+8,xs[1]-5,cy-8,orange);
+    gslc_DrawFillRect(g,{static_cast<int16_t>(xs[2]-5),
+                         static_cast<int16_t>(cy-5),10,10},gray);
+    line(g,xs[3]+7,cy-6,xs[3]+7,cy+6,gray);
+    line(g,xs[3]-6,cy-7,xs[3]+4,cy,gray);
+    line(g,xs[3]+4,cy,xs[3]-6,cy+7,gray);
+    line(g,xs[3]-6,cy+7,xs[3]-6,cy-7,gray);
+    // Inactive volume track. No invented current volume.
+    line(g,left+20,top+75,left+w-20,top+75,grid);
+    line(g,left+20,top+72,left+20,top+78,gray);
+    line(g,left+w-20,top+72,left+w-20,top+78,gray);
 }
 void obd(gslc_tsGui* g,gslc_tsRect r){
     const int16_t cx=r.x+r.w/2, cy=r.y+r.h-6;
