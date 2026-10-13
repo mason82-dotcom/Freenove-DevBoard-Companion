@@ -1,4 +1,5 @@
 #include "HermesStatus.h"
+#include "WifiLink.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
@@ -164,7 +165,9 @@ bool fetch(HermesStatus::Snapshot& s, uint32_t& endMs) {
 void poll(HermesStatus::Snapshot& s, uint8_t& quietPolls) {
     const bool wasConnected = s.connected;
     const int previousCode = s.httpCode;
-    s.connected = WiFi.status() == WL_CONNECTED;
+    // Only the home profile reaches the bridge; while the OBD2 vehicle
+    // profile holds the station, no request (and no token) leaves the device.
+    s.connected = WifiLink::connectedTo(WifiLink::Profile::Home);
     s.rssi = s.connected ? static_cast<int8_t>(WiFi.RSSI()) : 0;
     if (!s.connected) {
         if (wasConnected) Serial.println("Hermes: WLAN getrennt");
@@ -191,17 +194,15 @@ void poll(HermesStatus::Snapshot& s, uint8_t& quietPolls) {
 }
 
 void worker(void*) {
-    WiFi.mode(WIFI_STA);
-    WiFi.setAutoReconnect(true);
-    WiFi.begin(HERMES_WIFI_SSID, HERMES_WIFI_PASSWORD);
+    // The station (home profile) is started and owned by WifiLink.
     // Persistent worker state: the last valid values survive later failures
     // and are aged out by HermesStatus::format() via updatedAtMs.
     HermesStatus::Snapshot state;
     state.configured = true;
     uint8_t quietPolls = 0;
     for (;;) {
-        // WiFi.begin() and auto-reconnect manage association asynchronously.
-        // Never force a reconnect every poll while STA is still associating.
+        // Association and auto-reconnect are asynchronous (WifiLink); never
+        // force a reconnect every poll while the station is associating.
         poll(state, quietPolls);
         vTaskDelay(pdMS_TO_TICKS(kPollMs));
     }
