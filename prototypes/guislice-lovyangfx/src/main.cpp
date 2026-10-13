@@ -8,6 +8,7 @@
 #include "BoardTouch.h"
 #include "CompanionModules.h"
 #include "ModuleDiagnostics.h"
+#include "HermesStatus.h"
 #include "TouchTransform.h"
 
 // EXPERIMENT: GUIslice GUI + LovyanGFX TFT_eSPI compatibility backend.
@@ -187,6 +188,14 @@ void setup() {
     gslc_InitDebug(printDebug);
     gslc_InitTouchHandler(&fnkTouch);
     initialized = buildGui();
+    // Network initialization never blocks the GUIslice loop. No WiFi, HTTPS
+    // or credentials are used unless a private local opt-in header exists.
+    if (HermesStatus::enabled()) {
+        Serial.printf("Hermes TLS worker: %s\\n",
+                      HermesStatus::begin() ? "STARTED" : "FAILED");
+    } else {
+        Serial.println("Hermes TLS: OFFLINE (default)");
+    }
     Serial.printf("GUI BOOT: %s, display=320x240, modules=%u\n",
                   initialized ? "OK" : "FAIL",
                   static_cast<unsigned>(CompanionModules::kModuleCount));
