@@ -18,5 +18,7 @@ struct Snapshot {
 };
 bool begin();
 Snapshot read();
+// Copies the most recent chronological IR samples; read-only, no I2C.
+uint16_t readWave(uint16_t* destination, uint16_t capacity);
 void format(const Snapshot& sample, uint32_t nowMs, char rows[4][52]);
 }
