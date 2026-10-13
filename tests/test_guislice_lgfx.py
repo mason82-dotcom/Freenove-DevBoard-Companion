@@ -151,6 +151,34 @@ class GUIsliceLovyanPrototypeTests(unittest.TestCase):
         self.assertIn('Id::PulseOx, "PulsOx"', modules)
         self.assertNotIn("Id::Camera", modules)
 
+    def test_pulsox_stops_on_back_and_restarts_on_reentry(self):
+        sensor = (PROTO / "src" / "PulsOxSensor.cpp").read_text()
+        header = (PROTO / "include" / "PulsOxSensor.h").read_text()
+        self.assertIn("constexpr uint8_t kPulsOxPage = 6", self.main)
+        self.assertIn("currentPage == kPulsOxPage && nextPage != kPulsOxPage",
+                      self.main)
+        self.assertIn("PulsOx::requestActive(false);", self.main)
+        self.assertIn("currentPage != kPulsOxPage && nextPage == kPulsOxPage",
+                      self.main)
+        self.assertIn("PulsOx::requestActive(true)", self.main)
+        # GUI can request a change but MUST NOT directly access Wire or
+        # a SparkFun sensor instance in a button/touch callback.
+        self.assertIn("bool requestActive(bool active);", header)
+        self.assertIn("desiredActive.store(active);", sensor)
+        self.assertIn("stopPending.exchange(false)", sensor)
+        self.assertIn("sensor.shutDown();", sensor)
+        self.assertIn("SharedI2C::Guard lock(150);", sensor)
+        self.assertIn("ulTaskNotifyTake(pdTRUE, portMAX_DELAY);", sensor)
+        self.assertIn("xTaskNotifyGive(sensorWorker);", sensor)
+        self.assertIn("latest = Snapshot{};", sensor)
+        self.assertIn("waveHead = waveCount = 0;", sensor)
+        self.assertIn('Serial.println("PulsOx MAX30102: STOPPED");', sensor)
+        self.assertIn('Serial.println("PulsOx MAX30102: START");', sensor)
+        self.assertNotIn("vTaskDelete(", sensor)
+        self.assertEqual(sensor.count("xTaskCreatePinnedToCore("), 1)
+        self.assertIn("if (!desiredActive.load()) return Snapshot{};", sensor)
+        self.assertIn("if (!out || !capacity || !desiredActive.load())", sensor)
+
     def test_touch_is_single_mapped_source(self):
         self.assertRegex(self.cfg, r"(?m)^\s*#define DRV_TOUCH_HANDLER\b")
         self.assertNotRegex(self.cfg, r"(?m)^\s*#define DRV_TOUCH_NONE\b")
