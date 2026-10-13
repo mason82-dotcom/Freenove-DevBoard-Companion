@@ -122,9 +122,15 @@ void poll(Snapshot& next) {
     const float t = temp.as<float>();
     const float r = ram.as<float>();
     const float l = load.as<float>();
-    next.piTempValid = !temp.isNull() && std::isfinite(t) && t >= -20 && t <= 150;
-    next.piRamValid = !ram.isNull() && std::isfinite(r) && r >= 0 && r <= 100;
-    next.piLoadValid = !load.isNull() && std::isfinite(l) && l >= 0 && l < 1000;
+    // Reject numeric-looking strings and other invalid JSON types instead of
+    // converting them into falsely plausible 0.0 Pi measurements.
+    const auto numeric = [](JsonVariant v) {
+        return v.is<float>() || v.is<double>() || v.is<int>()
+            || v.is<long>() || v.is<unsigned long>();
+    };
+    next.piTempValid = numeric(temp) && std::isfinite(t) && t >= -20 && t <= 150;
+    next.piRamValid = numeric(ram) && std::isfinite(r) && r >= 0 && r <= 100;
+    next.piLoadValid = numeric(load) && std::isfinite(l) && l >= 0 && l < 1000;
     next.piTempC = next.piTempValid ? t : 0;
     next.piRamPct = next.piRamValid ? r : 0;
     next.piLoad = next.piLoadValid ? l : 0;
@@ -171,10 +177,13 @@ bool enabled() {
 
 bool begin() {
 #if HERMES_LIVE_ENABLED
-    if (!configValid()) return false;
     if (mutex || workerHandle) return false;
     mutex = xSemaphoreCreateMutex();
     if (!mutex) return false;
+    if (!configValid()) {
+        shared.phase = Phase::CONFIG_ERROR;
+        return false;
+    }
     shared.phase = Phase::STARTING;
     if (xTaskCreate(task, "hermes-read", 14336, nullptr, 1,
                     &workerHandle) != pdPASS) {
