@@ -117,3 +117,13 @@ Geflasht auf `/dev/ttyACM0` (SER `58FC003021`) nach Freigabe durch den Nutzer; U
 - Seite: Sender (n/44), Titel als Lauftext (Text nur bei Änderung gesetzt, sonst springt die Animation), Status („Wiedergabe | 128 kbps MP3“), Tasten ◀ / Play-Stop / ▶ / − / +, Lautstärke 0–21. Montserrat 12 enthält keine Umlaute; Sonderzeichen in Titeln werden nicht dargestellt.
 - Tests: 50 bestanden (`tests/test_webradio.py`, `tests/webradio_smoke.cpp`: UTF-8-Kürzung, Statustexte, Senderliste; Engine ohne LVGL, UI ohne Audio-Objekt, keine Server-/NVS-/SD-Zugriffe). Build mit und ohne lokale Konfiguration **SUCCESS** (RAM 43,9 %, Flash 72,2 %).
 - **Nicht auf dem Board geprüft**, kein Audiotest.
+
+
+## Globale SD-Karte und lokaler FTP-Server (13.10.2026)
+
+- `include/SdCard.h`, `src/SdCard.cpp`: Mount beim Start (`setup()`), SD_MMC 1-Bit mit den Pins aus `BoardPins.h` (wie im eigenständigen Webradio-Projekt), **ohne Auto-Format**. Gemeinsamer Zugriff über `SdCard::fs()`; ESP-IDF-FATFS ist reentrant. `usedBytes()` durchsucht die FAT und läuft deshalb nur in einem Hintergrund-Task (Prio 0, Core 0); Neuberechnung nach FTP-Uploads/Löschungen.
+- `include/FtpProtocol.h`, `src/FtpProtocol.cpp`: reine Funktionen – Pfadauflösung mit Sandbox (`..` endet an `/`, FAT-ungültige und Steuerzeichen abgelehnt, max. 255 Zeichen), Befehlsparser, PASV-/LIST-Formatierung, Subnetzprüfung, Mindestanforderung an Zugangsdaten. Nativ getestet (`tests/ftp_smoke.cpp`).
+- `src/FtpServer.cpp`: eigener schlanker Server statt Fremdbibliothek. Befehle: USER PASS QUIT NOOP SYST FEAT OPTS TYPE MODE STRU PWD/XPWD CWD CDUP PASV EPSV LIST NLST RETR STOR SIZE DELE MKD/XMKD RMD/XRMD RNFR/RNTO; PORT/EPRT abgelehnt (kein FTP-Bounce). Ein Client; Datenverbindung nur von der IP des angemeldeten Clients; nur eigenes Subnetz; 3 Fehlversuche → 30 s Sperre (+1 s Verzögerung je Fehlversuch); Steuerverbindung 5 min Leerlauf-Timeout; Server **nach dem Start aus**, Ein/Aus über die System-Seite, automatische Abschaltung nach 10 min Inaktivität; nur im Heim-WLAN. Passwörter werden nie protokolliert.
+- System-Seite: 7 Zeilen inkl. „SD: x / y GB frei“ und FTP-Status (Adresse, Restzeit, verbundener Client), Taste „FTP: an/aus“.
+- Tests: 55 bestanden. Build ohne FTP-Konfiguration und mit temporärer Platzhalter-Konfiguration (danach gelöscht): **SUCCESS** (RAM 44,1 %, Flash 74,4 %).
+- **Nicht auf dem Board geprüft**: weder SD-Mount noch FTP-Übertragung.

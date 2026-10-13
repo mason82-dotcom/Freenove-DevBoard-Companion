@@ -50,6 +50,12 @@ Zuletzt bestätigter GitHub-Actions-Lauf: [38450901771](https://github.com/mason
 
 Frühere Hardwareprüfungen und Diagnoseprotokolle sind Teil der Projektgeschichte; die automatisierten LVGL-8-Tests sind **keine erneute physische Hardwareabnahme**. Hardwaretests wurden bereits im Projektverlauf durchgeführt. Neue Firmwareänderungen sollten bei Bedarf gezielt und nicht pauschal erneut geprüft werden.
 
+## SD-Karte und FTP
+
+Die SD-Karte (SD_MMC, 1 Bit: CLK 39, CMD 38, D0 40) wird beim Start eingebunden und steht allen Modulen über `SdCard::fs()` zur Verfügung; sie wird nie automatisch formatiert. Die System-Seite zeigt Typ und freien Platz.
+
+Optionaler FTP-Server für die SD-Karte: `include/FtpLocalConfig.example.h` nach `include/FtpLocalConfig.h` kopieren (git-ignoriert), Benutzer und Passwort (mind. 8 Zeichen) setzen. **FTP ist unverschlüsselt.** Der Server ist nach dem Start aus und wird über die Taste „FTP“ auf der System-Seite eingeschaltet; er läuft nur im Heim-WLAN, nimmt nur Clients aus dem eigenen Subnetz an (ein Client, nur Passivmodus, Port 21 + 50000), sperrt nach 3 Fehlversuchen für 30 s, bleibt auf die SD-Karte beschränkt und schaltet sich nach 10 min ohne Aktivität ab. Beispiel: `ftp <Board-IP>` oder FileZilla mit „Nur einfaches FTP (unsicher)“ und Passivmodus.
+
 ## OBD2-Labortest
 
 `include/Obd2LocalConfig.example.h` nach `include/Obd2LocalConfig.h` kopieren (git-ignoriert) und Host/Port eintragen. Das WLAN stellt der Hermes-Worker bereit. Simulator auf dem Pi:
