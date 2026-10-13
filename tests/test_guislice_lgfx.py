@@ -153,11 +153,10 @@ class GUIsliceLovyanPrototypeTests(unittest.TestCase):
 
     def test_heart_icon_bounds_and_reduced_refresh(self):
         graphics = (PROTO / "src" / "ModuleGraphics.cpp").read_text()
-        self.assertIn("const int16_t cx = r.x + 35;", graphics)
-        self.assertIn("const int16_t heartTop = r.y + 15;", graphics)
-        self.assertIn("static const uint8_t halfWidths[]", graphics)
-        self.assertIn("cx - hw, heartTop + y, cx + hw, heartTop + y", graphics)
-        self.assertNotIn("dot(g,r.x+26,cy-6,9", graphics)
+        self.assertIn("static const uint32_t heartRows[32]", graphics)
+        self.assertIn("const int16_t x = r.x + (r.w - 32) / 2;", graphics)
+        self.assertIn("const int16_t y = r.y + (r.h - 32) / 2;", graphics)
+        self.assertIn("runStart = col", graphics)
         self.assertIn("now - lastPulseCanvasMs >= 250", self.main)
 
     def test_pulsox_stops_on_back_and_restarts_on_reentry(self):
