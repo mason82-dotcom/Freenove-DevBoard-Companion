@@ -189,18 +189,22 @@ void updateHermesDetails() {
     } else if (!s.connected) {
         lv_label_set_text(hermesLabel, "WLAN: offline");
     } else if (!s.valid) {
-        lv_label_set_text_fmt(hermesLabel, "Hermes: keine gueltigen Daten\\nHTTP: %d", s.httpCode);
+        lv_label_set_text_fmt(hermesLabel, "Hermes: keine gueltigen Daten\nHTTP: %d", s.httpCode);
     } else {
+        char cpu[20], ram[20], load[20];
+        if (s.hasCpuTemp) snprintf(cpu, sizeof(cpu), "%.1f C", s.cpuTempC);
+        else snprintf(cpu, sizeof(cpu), "--");
+        if (s.hasRam) snprintf(ram, sizeof(ram), "%.1f %%", s.ramUsedPct);
+        else snprintf(ram, sizeof(ram), "--");
+        if (s.hasLoad) snprintf(load, sizeof(load), "%.2f", s.load1);
+        else snprintf(load, sizeof(load), "--");
         lv_label_set_text_fmt(hermesLabel,
-            "API: %s | Probe: %s\\nGateway: %s | Dashboard: %s\\nPi CPU: %.1f C | RAM: %.1f %%\\nLoad: %.2f | Chat: %s",
+            "API: %s | Probe: %s\nGateway: %s | Dashboard: %s\nPi CPU: %s | RAM: %s\nLoad: %s | Chat: %s",
             s.fresh && s.apiHealthy ? "OK" : "NICHT OK",
             s.fresh ? "aktuell" : "veraltet",
             !s.fresh || !s.gatewayKnown ? "--" : s.gatewayRunning ? "AN" : "AUS",
             s.fresh && s.dashboardReachable ? "OK" : "nicht OK",
-            s.hasCpuTemp ? s.cpuTempC : 0.0f,
-            s.hasRam ? s.ramUsedPct : 0.0f,
-            s.hasLoad ? s.load1 : 0.0f,
-            s.chatEnabled ? "AN" : "AUS");
+            cpu, ram, load, s.chatEnabled ? "AN" : "AUS");
     }
 }
 
