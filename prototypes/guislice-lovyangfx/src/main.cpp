@@ -19,12 +19,16 @@
 
 namespace {
 constexpr uint8_t kPages = 7;    // 0=Home; 1..6 = the existing Companion modules.
+constexpr uint8_t kRadioPage = 2;
 constexpr uint8_t kPulsOxPage = 6;  // Only the last module uses MAX30102.
 constexpr uint8_t kItemsPerPage = 12;
 constexpr uint8_t kStatusRows = ModuleDiagnostics::kRows;
 constexpr int16_t kFontBody = 0;
 constexpr int16_t kHomeButtonBase = 10;
 constexpr int16_t kBackButtonBase = 100;
+constexpr int16_t kRadioButtonBase = 200;
+char radioMessage[64] = "Audio aus | Steuerung noch nicht verbunden";
+gslc_tsElemRef* radioMessageRef = nullptr;
 
 gslc_tsGui gui;
 gslc_tsDriver driver;
@@ -94,6 +98,15 @@ bool onButton(void*, void* ref, gslc_teTouch touch, int16_t, int16_t) {
     if (id >= kHomeButtonBase &&
         id < kHomeButtonBase + static_cast<int16_t>(CompanionModules::kModuleCount)) {
         requestedPage = static_cast<uint8_t>(id - kHomeButtonBase + 1);
+    } else if (id >= kRadioButtonBase && id < kRadioButtonBase + 4) {
+        // Controls are real touch targets; audio is deliberately not simulated.
+        static const char* actions[] = {"Sender zurueck", "Play/Pause",
+                                         "Sender weiter", "Lautstaerke"};
+        const uint8_t action = static_cast<uint8_t>(id - kRadioButtonBase);
+        snprintf(radioMessage, sizeof(radioMessage),
+                 "%s: Audio noch nicht verbunden", actions[action]);
+        if (radioMessageRef) gslc_ElemSetTxtStr(&gui, radioMessageRef, radioMessage);
+        Serial.printf("WEBRADIO TOUCH: %s (no audio action)\\n", actions[action]);
     } else if (id >= kBackButtonBase &&
                id < kBackButtonBase + static_cast<int16_t>(CompanionModules::kModuleCount)) {
         requestedPage = 0;
@@ -159,6 +172,26 @@ bool buildGui() {
                        "< Zurueck")) return false;
         if (!addText(page, {94, 6, 212, 25},
                      const_cast<char*>(CompanionModules::kModules[i].title))) return false;
+        if (page == kRadioPage) {
+            // Dedicated landscape player: reserve the whole page for radio.
+            if (!addText(page, {12, 42, 294, 20},
+                         (char*)"WEBRADIO | Player offline")) return false;
+            canvasRefs[i] = gslc_ElemCreateBox(&gui, GSLC_ID_AUTO, page,
+                                               {12, 65, 294, 97});
+            if (!canvasRefs[i]) return false;
+            ModuleGraphics::bind(i, canvasRefs[i]);
+            gslc_ElemSetDrawFunc(&gui, canvasRefs[i], &ModuleGraphics::draw);
+            const char* labels[] = {"<<", "PLAY", ">>", "VOL"};
+            for (uint8_t j = 0; j < 4; ++j) {
+                if (!addButton(page, kRadioButtonBase + j,
+                               {static_cast<int16_t>(12 + j * 75), 169, 69, 36},
+                               labels[j])) return false;
+            }
+            radioMessageRef = addText(page, {12, 213, 294, 20},
+                                      radioMessage, sizeof(radioMessage));
+            if (!radioMessageRef) return false;
+            continue;
+        }
         if (!addText(page, {12, 42, 294, 20},
                      const_cast<char*>(CompanionModules::kModules[i].detail))) return false;
         // Each module owns a native GUIslice graphics canvas.
