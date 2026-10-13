@@ -5,6 +5,7 @@
 #include "BoardTouch.h"
 #include "CompanionModules.h"
 #include "CompanionUi.h"
+#include "HermesStatus.h"
 #include "PulsOxSensor.h"
 #include "TouchTransform.h"
 
@@ -35,6 +36,8 @@ uint32_t lastTick = 0;
 uint32_t lastSystemRefresh = 0;
 uint32_t lastPulsOxRefresh = 0;
 lv_obj_t* pulsOxLabel = nullptr;
+lv_obj_t* hermesLabel = nullptr;
+uint32_t lastHermesRefresh = 0;
 bool touchEnabled = false;
 bool ready = false;
 uint8_t diagStage = 0;  // Assigned in begin: normal 2, diagnostic 0.
@@ -114,6 +117,7 @@ void makeScreenBlank() {
     lv_obj_set_style_bg_color(root, color(0x0B1220), 0);
     statusLabel = nullptr;
     pulsOxLabel = nullptr;
+    hermesLabel = nullptr;
 }
 
 void onTileClicked(lv_event_t* event) {
@@ -177,6 +181,29 @@ void updateSystemDetails() {
         static_cast<unsigned>(ESP.getFreePsram()));
 }
 
+void updateHermesDetails() {
+    if (shownPage != 1 || !hermesLabel) return;
+    const auto s = HermesStatus::read();
+    if (!s.configured) {
+        lv_label_set_text(hermesLabel, "Hermes: Konfiguration fehlt");
+    } else if (!s.connected) {
+        lv_label_set_text(hermesLabel, "WLAN: offline");
+    } else if (!s.valid) {
+        lv_label_set_text_fmt(hermesLabel, "Hermes: keine gueltigen Daten\\nHTTP: %d", s.httpCode);
+    } else {
+        lv_label_set_text_fmt(hermesLabel,
+            "API: %s | Probe: %s\\nGateway: %s | Dashboard: %s\\nPi CPU: %.1f C | RAM: %.1f %%\\nLoad: %.2f | Chat: %s",
+            s.fresh && s.apiHealthy ? "OK" : "NICHT OK",
+            s.fresh ? "aktuell" : "veraltet",
+            !s.fresh || !s.gatewayKnown ? "--" : s.gatewayRunning ? "AN" : "AUS",
+            s.fresh && s.dashboardReachable ? "OK" : "nicht OK",
+            s.hasCpuTemp ? s.cpuTempC : 0.0f,
+            s.hasRam ? s.ramUsedPct : 0.0f,
+            s.hasLoad ? s.load1 : 0.0f,
+            s.chatEnabled ? "AN" : "AUS");
+    }
+}
+
 void showModule(uint8_t page) {
     makeScreenBlank();
     lv_obj_t* root = lv_scr_act();
@@ -196,7 +223,10 @@ void showModule(uint8_t page) {
     lv_obj_clear_flag(panel, LV_OBJ_FLAG_SCROLLABLE);
 
     newLabel(panel, module.detail, 9, 10, 0xCFDFED);
-    if (module.id == CompanionModules::Id::System) {
+    if (module.id == CompanionModules::Id::Hermes) {
+        hermesLabel = newLabel(panel, "Hermes wird abgefragt ...", 9, 35, 0x81DDBC);
+        updateHermesDetails();
+    } else if (module.id == CompanionModules::Id::System) {
         statusLabel = newLabel(panel, "", 9, 42, 0x81DDBC);
         updateSystemDetails();
     } else if (module.id == CompanionModules::Id::PulsOx) {
@@ -252,6 +282,7 @@ bool begin(bool touchPresent) {
                   static_cast<void*>(display),
                   static_cast<void*>(pointer),
                   static_cast<unsigned>(sizeof(drawPixels)));
+    HermesStatus::begin();
     lastTick = millis();
     lastSystemRefresh = lastTick;
     shownPage = 0;
@@ -316,6 +347,10 @@ void poll() {
         PulsOx::format(PulsOx::read(), now, rows);
         lv_label_set_text_fmt(pulsOxLabel, "%s\n%s\n%s\n%s",
                               rows[0], rows[1], rows[2], rows[3]);
+    }
+    if (shownPage == 1 && now - lastHermesRefresh >= 1000) {
+        lastHermesRefresh = now;
+        updateHermesDetails();
     }
     if (shownPage == 5 && now - lastSystemRefresh >= 1000) {
         lastSystemRefresh = now;
