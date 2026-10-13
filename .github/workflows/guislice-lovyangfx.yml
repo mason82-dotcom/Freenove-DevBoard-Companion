@@ -5,11 +5,13 @@ on:
     branches:
       - experiment/guislice-lovyangfx
       - feature/guislice-six-modules
+      - feature/guislice-hermes-https-status
   workflow_dispatch:
   pull_request:
     branches:
       - feature/deps-lvgl9
       - experiment/guislice-lovyangfx
+      - feature/guislice-six-modules
 
 permissions:
   contents: read
@@ -46,3 +48,27 @@ jobs:
           EOF
       - name: Compile GUIslice with LovyanGFX on ESP32-S3, do not upload
         run: pio run -c platformio.guislice-lgfx.ini -e fnk0086_lgfx
+      - name: Add synthetic CI-only Hermes credentials and CA (never flash)
+        shell: bash
+        run: |
+          cat > prototypes/guislice-lovyangfx/include/HermesDeviceConfig.h <<'EOF'
+          // COMPILE-ONLY FAKE SETTINGS. NEVER FLASH THESE TO HARDWARE.
+          #define HERMES_LIVE_ENABLED 1
+          #define HT_DEMO_MODE 0
+          #define HT_WIFI_SSID "CI_FAKE_SSID"
+          #define HT_WIFI_PASSWORD "CI_FAKE_PASS"
+          #define HT_BRIDGE_URL "https://192.0.2.1:8766"
+          #define HT_DEVICE_TOKEN "CI_FAKE_TOKEN"
+          EOF
+          cat > prototypes/guislice-lovyangfx/include/HermesLocalCa.h <<'EOF'
+          #pragma once
+          static const char HT_CA_CERT[] =
+            "-----BEGIN CERTIFICATE-----\\n"
+            "CI_FAKE_CERTIFICATE_CANNOT_AUTHENTICATE_ANY_SERVER_DONT_FLASH_TO_HARDWARE_0123456789ABCDEF0123456789ABCDEF\\n"
+            "-----END CERTIFICATE-----\\n";
+          EOF
+      - name: Compile TLS-enabled Hermes network worker (fake credentials only)
+        run: |
+          pio run -c platformio.guislice-lgfx.ini -e fnk0086_lgfx -t clean
+          pio run -c platformio.guislice-lgfx.ini -e fnk0086_lgfx
+

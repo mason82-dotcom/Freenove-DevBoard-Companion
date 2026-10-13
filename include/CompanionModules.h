@@ -15,7 +15,7 @@ struct Module {
 };
 
 constexpr Module kModules[] = {
-    {Id::Hermes,   "Hermes",   "Status: noch nicht verbunden"},
+    {Id::Hermes,   "Hermes",   "Sichere Pi-Bridge / HTTPS-Status"},
     {Id::Webradio, "Webradio", "Status: Audiomodul noch nicht aktiv"},
     {Id::Obd2,    "OBD2",     "Status: read-only ELM327 noch nicht aktiv"},
     {Id::Drone,   "Drohne",   "Status: Telemetrie noch nicht verbunden"},

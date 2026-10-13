@@ -1,14 +1,13 @@
 #include "ModuleDiagnostics.h"
-#include <stdio.h>
+#include "HermesStatus.h"
 
 namespace ModuleDiagnostics::Adapter {
 void hermes(Snapshot& out, uint32_t uptimeMs) {
-    // Hermes-Agent endpoint and credentials are NOT configured in firmware.
-    // No network connection or HTTP probes are started automatically.
-    snprintf(out.text[0], kTextCapacity, "Agent: nicht verbunden");
-    snprintf(out.text[1], kTextCapacity, "Gateway: nicht eingerichtet");
-    snprintf(out.text[2], kTextCapacity, "Daten: keine Antwort");
-    snprintf(out.text[3], kTextCapacity, "Diagnose-Uptime: %lu s",
-             static_cast<unsigned long>(uptimeMs / 1000));
+    // A GUI read is a zero-wait copy. No Wi-Fi, HTTP, TLS or mutex waiting
+    // is performed in the GUIslice event loop.
+    static HermesStatus::Snapshot last{};
+    HermesStatus::Snapshot fresh{};
+    if (HermesStatus::copy(fresh)) last = fresh;
+    HermesStatus::format(last, uptimeMs, out.text);
 }
 }
