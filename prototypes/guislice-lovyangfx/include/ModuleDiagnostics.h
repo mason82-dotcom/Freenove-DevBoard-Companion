@@ -3,7 +3,7 @@
 #include "CompanionModules.h"
 
 // Read-only presentation contract for the six Companion pages.
-// No backend is allowed to change vehicle, drone, radio or camera state merely
+// No backend is allowed to change vehicle, drone or radio state merely
 // because the user opens a status page. All text is copied into GUI-owned
 // stable buffers by GUIslice (never modify those buffers in place).
 namespace ModuleDiagnostics {
@@ -21,6 +21,6 @@ namespace Adapter {
     void obd2(Snapshot& out, uint32_t uptimeMs);
     void drone(Snapshot& out, uint32_t uptimeMs);
     void system(Snapshot& out, uint32_t uptimeMs);
-    void camera(Snapshot& out, uint32_t uptimeMs);
+    void pulseOx(Snapshot& out, uint32_t uptimeMs);
 }
 } // namespace ModuleDiagnostics
