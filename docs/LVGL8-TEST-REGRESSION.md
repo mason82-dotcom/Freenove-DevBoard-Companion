@@ -83,4 +83,6 @@ Geflasht auf `/dev/ttyACM0` (SER `58FC003021`) nach Freigabe durch den Nutzer; U
   - Board-Zähler je Sitzung stimmen exakt mit dem Simulator überein (158 / 536 / 2.005 Befehle); 0 Timeouts. Sitzung 1 meldete `errors=1` ohne verlorene Antwort (tx = Simulatorzählung), vermutlich ein erster Verbindungsversuch direkt nach dem Booten; der Mitschnitt begann zu spät für einen Nachweis. Sitzung 2 und 3: 0 Fehler.
   - Sitzung endet beim Verlassen der Seite (`OBD2: idle`, TCP getrennt); beim nächsten Öffnen vollständige Neuinitialisierung.
   - Simulator beendet: Board wechselt zu `error`, neuer Versuch alle ~3 s, kein Absturz, Heap stabil (~152 KB). Worker-Stack: 3.712 von 6.144 Byte frei.
-  - Kein Foto der OBD2-Seite ausgewertet; **kein Fahrzeugtest**, kein echter ELM327-Dongle.
+  - Foto der OBD2-Seite (Nutzer, zweiter Simulatorlauf): alle Werte live (859 rpm, 32 km/h, 90 C, 30 C, 29,8 %, 12,5 %, 13,50 V; TX 75, 0 Timeouts, 0 Fehler), Read-only-Hinweis sichtbar. Die erste Zeile `ELM327 v1.5 (LAB SIM)` reichte bis an den Panelrand: Die Adapterkennung wird jetzt ohne Klammerzusatz übernommen und auf 15 Zeichen begrenzt (`Obd2Response::adapterId()`, nativ getestet, inkl. Echo mit früherem „E“). **Diese Anzeigekorrektur ist noch nicht geflasht.**
+  - Simulator: beendet sich jetzt bei Ctrl+C/SIGTERM sauber (vorher nur per SIGTERM, ohne Zusammenfassung) und protokolliert keinen Traceback mehr, wenn das Board die Verbindung beim Verlassen der Seite zurücksetzt.
+  - **Kein Fahrzeugtest**, kein echter ELM327-Dongle.
