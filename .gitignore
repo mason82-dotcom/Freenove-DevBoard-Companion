@@ -3,6 +3,9 @@
 __pycache__/
 *.pyc
 include/VerifiedDisplaySetup.h
+# Locally provisioned Hermes Wi-Fi credentials, device token and CA.
+prototypes/guislice-lovyangfx/include/HermesDeviceConfig.h
+prototypes/guislice-lovyangfx/include/HermesLocalCa.h
 .env
 secrets.*
 *.pem
