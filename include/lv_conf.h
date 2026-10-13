@@ -8,6 +8,9 @@
 #define LV_MEM_SIZE (64U * 1024U)
 #define LV_TICK_CUSTOM 0
 #define LV_DPI_DEF 130
+/* Compact global typography for the 320x240 companion display. */
+#define LV_FONT_MONTSERRAT_12 1
+#define LV_FONT_DEFAULT &lv_font_montserrat_12
 #define LV_USE_LOG 0
 #define LV_USE_ASSERT_NULL 1
 #define LV_USE_ASSERT_MALLOC 1
