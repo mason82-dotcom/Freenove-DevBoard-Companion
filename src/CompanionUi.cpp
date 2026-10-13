@@ -5,7 +5,9 @@
 #include "BoardTouch.h"
 #include "CompanionModules.h"
 #include "CompanionUi.h"
+#include "FtpServer.h"
 #include "HermesStatus.h"
+#include "SdCard.h"
 #include "Obd2Status.h"
 #include "PulsOxSensor.h"
 #include "TouchTransform.h"
@@ -47,6 +49,7 @@ lv_obj_t* hermesLabel = nullptr;
 uint32_t lastHermesRefresh = 0;
 lv_obj_t* obd2Label = nullptr;
 uint32_t lastObd2Refresh = 0;
+lv_obj_t* ftpButtonLabel = nullptr;
 lv_obj_t* radioStation = nullptr;
 lv_obj_t* radioTitle = nullptr;
 lv_obj_t* radioStatus = nullptr;
@@ -146,6 +149,7 @@ void makeScreenBlank() {
     hermesLabel = nullptr;
     obd2Label = nullptr;
     radioStation = radioTitle = radioStatus = radioVolume = radioPlayLabel = nullptr;
+    ftpButtonLabel = nullptr;
 }
 
 void onTileClicked(lv_event_t* event) {
@@ -200,22 +204,73 @@ void showHome() {
     newLabel(root, "Nur Anzeige", 226, 216, 0x92A8C0);
 }
 
+void sdLine(char* out, size_t cap) {
+    const auto sd = SdCard::info();
+    if (!sd.mounted) {
+        snprintf(out, cap, "SD: keine Karte");
+    } else if (!sd.usageKnown) {
+        snprintf(out, cap, "SD: %s %.1f GB (Belegung ...)", SdCard::typeName(sd.type),
+                 static_cast<double>(sd.totalBytes) / 1e9);
+    } else {
+        snprintf(out, cap, "SD: %.1f / %.1f GB frei",
+                 static_cast<double>(sd.totalBytes - sd.usedBytes) / 1e9,
+                 static_cast<double>(sd.totalBytes) / 1e9);
+    }
+}
+
+void ftpLine(char* out, size_t cap) {
+    const auto f = FtpServer::status();
+    const uint32_t ip = f.localIp;
+    switch (f.state) {
+        case FtpServer::State::NotConfigured: snprintf(out, cap, "FTP: nicht konfiguriert"); break;
+        case FtpServer::State::Off: snprintf(out, cap, "FTP: aus"); break;
+        case FtpServer::State::NoCard: snprintf(out, cap, "FTP: wartet auf SD-Karte"); break;
+        case FtpServer::State::NoWifi: snprintf(out, cap, "FTP: wartet auf Heim-WLAN"); break;
+        case FtpServer::State::Listening:
+            snprintf(out, cap, "FTP: %u.%u.%u.%u:%u (aus in %lu min)",
+                     static_cast<unsigned>(ip >> 24), static_cast<unsigned>((ip >> 16) & 0xFF),
+                     static_cast<unsigned>((ip >> 8) & 0xFF), static_cast<unsigned>(ip & 0xFF),
+                     static_cast<unsigned>(f.port),
+                     static_cast<unsigned long>((f.idleSecondsLeft + 59) / 60));
+            break;
+        case FtpServer::State::Session:
+            snprintf(out, cap, "FTP: Client %u.%u.%u.%u verbunden",
+                     static_cast<unsigned>(f.clientIp >> 24),
+                     static_cast<unsigned>((f.clientIp >> 16) & 0xFF),
+                     static_cast<unsigned>((f.clientIp >> 8) & 0xFF),
+                     static_cast<unsigned>(f.clientIp & 0xFF));
+            break;
+    }
+}
+
 void updateSystemDetails() {
     if (statusLabel == nullptr || !showing(CompanionModules::Id::System)) return;
     const auto hermes = HermesStatus::read();
-    char wifi[24];
-    if (!hermes.configured) snprintf(wifi, sizeof(wifi), "nicht konfiguriert");
-    else if (!hermes.connected) snprintf(wifi, sizeof(wifi), "offline");
-    else snprintf(wifi, sizeof(wifi), "%d dBm", static_cast<int>(hermes.rssi));
+    char wifi[24], sd[48], ftp[48];
+    if (!WifiLink::homeConfigured()) snprintf(wifi, sizeof(wifi), "nicht konfiguriert");
+    else if (!WifiLink::connectedTo(WifiLink::Profile::Home)) snprintf(wifi, sizeof(wifi), "offline");
+    else if (hermes.connected) snprintf(wifi, sizeof(wifi), "%d dBm", static_cast<int>(hermes.rssi));
+    else snprintf(wifi, sizeof(wifi), "verbunden");
+    sdLine(sd, sizeof(sd));
+    ftpLine(ftp, sizeof(ftp));
     lv_label_set_text_fmt(statusLabel,
-        "Uptime: %lu s\nHeap frei: %u B (min %u B)\nGroesster Block: %u B\n"
-        "PSRAM frei: %u B\nCPU: %u MHz | WLAN: %s",
+        "Uptime: %lu s | CPU: %u MHz\nHeap frei: %u B (min %u B)\nGroesster Block: %u B\n"
+        "PSRAM frei: %u B\nWLAN: %s\n%s\n%s",
         static_cast<unsigned long>(millis() / 1000),
+        static_cast<unsigned>(ESP.getCpuFreqMHz()),
         static_cast<unsigned>(ESP.getFreeHeap()),
         static_cast<unsigned>(ESP.getMinFreeHeap()),
         static_cast<unsigned>(ESP.getMaxAllocHeap()),
-        static_cast<unsigned>(ESP.getFreePsram()),
-        static_cast<unsigned>(ESP.getCpuFreqMHz()), wifi);
+        static_cast<unsigned>(ESP.getFreePsram()), wifi, sd, ftp);
+    if (ftpButtonLabel != nullptr)
+        lv_label_set_text(ftpButtonLabel, !FtpServer::configured() ? "FTP: --"
+                                          : FtpServer::enabled() ? "FTP: an" : "FTP: aus");
+}
+
+void onFtpToggle(lv_event_t*) {
+    if (!FtpServer::configured()) return;
+    FtpServer::setEnabled(!FtpServer::enabled());
+    lastSystemRefresh = 0;  // show the new state on the next poll
 }
 
 void updateHermesDetails() {
@@ -305,7 +360,8 @@ void showModule(uint8_t page) {
     // Panel content area (theme padding 10 px): about 278 x 122 px.
     if (module.id != CompanionModules::Id::PulsOx &&
         module.id != CompanionModules::Id::Obd2 &&
-        module.id != CompanionModules::Id::Webradio) {
+        module.id != CompanionModules::Id::Webradio &&
+        module.id != CompanionModules::Id::System) {
         newLabel(panel, module.id == CompanionModules::Id::Hermes
                             ? "Hermes Live-Status" : module.detail,
                  9, 10, 0xCFDFED);
@@ -339,7 +395,10 @@ void showModule(uint8_t page) {
         obd2Label = newLabel(panel, "ELM327 wird verbunden ...", 9, 0, 0x81DDBC);
         updateObd2Details();
     } else if (module.id == CompanionModules::Id::System) {
-        statusLabel = newLabel(panel, "", 9, 42, 0x81DDBC);
+        statusLabel = newLabel(panel, "", 9, 0, 0x81DDBC);
+        lv_obj_t* ftp = makeButton(root, 222, 7, 90, 28, "FTP: aus", 0x25415D);
+        lv_obj_add_event_cb(ftp, onFtpToggle, LV_EVENT_CLICKED, nullptr);
+        ftpButtonLabel = lv_obj_get_child(ftp, 0);
         updateSystemDetails();
     } else if (module.id == CompanionModules::Id::PulsOx) {
         pulsOxLabel = newLabel(panel, "MAX30102 wird gestartet ...", 9, 0, 0x81DDBC);
@@ -419,6 +478,7 @@ bool begin(bool touchPresent) {
                   static_cast<void*>(pointer),
                   static_cast<unsigned>(sizeof(drawPixels)));
     WifiLink::begin();
+    FtpServer::begin();
     Webradio::begin();
     HermesStatus::begin();
     Obd2Status::begin();
