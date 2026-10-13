@@ -1,6 +1,7 @@
 #include "HermesStatus.h"
 #include <stdio.h>
 #include <math.h>
+#include <stdlib.h>
 
 namespace HermesStatus {
 namespace {
