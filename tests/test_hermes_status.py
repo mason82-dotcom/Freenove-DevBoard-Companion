@@ -37,6 +37,15 @@ class HermesStatusTests(unittest.TestCase):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, self.worker)
 
+    def test_silent_close_only_after_complete_body(self):
+        self.assertIn("bodyComplete = true;", self.worker)
+        self.assertEqual(self.worker.count("client->stop()"), 1)
+        self.assertIn("if (bodyComplete) client->stop();", self.worker)
+        self.assertLess(self.worker.index("if (bodyComplete) client->stop();"),
+                        self.worker.index("http->end();"))
+        self.assertLess(self.worker.index("bodyComplete = true;"),
+                        self.worker.index("deserializeJson("))
+
     def test_last_valid_values_survive_failures(self):
         self.assertIn("HermesStatus::Snapshot state;", self.worker)
         self.assertIn("poll(state, quietPolls)", self.worker)

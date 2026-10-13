@@ -115,6 +115,7 @@ bool fetch(HermesStatus::Snapshot& s, uint32_t& endMs) {
     http->addHeader("Accept", "application/json");
     s.httpCode = http->GET();
     bool ok = false;
+    bool bodyComplete = false;
     if (s.httpCode == HTTP_CODE_OK) {
         const int length = http->getSize();
         if (length <= 0 || length > static_cast<int>(kMaxBody)) {
@@ -134,6 +135,7 @@ bool fetch(HermesStatus::Snapshot& s, uint32_t& endMs) {
                     Serial.printf("Hermes RX: expected=%d received=%u (incomplete)\n",
                                   length, static_cast<unsigned>(received));
                 } else {
+                    bodyComplete = true;
                     JsonDocument doc;
                     const DeserializationError error = deserializeJson(
                         doc, body.get(), received, DeserializationOption::NestingLimit(6));
@@ -148,6 +150,12 @@ bool fetch(HermesStatus::Snapshot& s, uint32_t& endMs) {
         }
     }
     const uint32_t endStart = millis();
+    // The bridge closes the TLS socket right after a complete response
+    // without close_notify. http->end() would then probe it via available()
+    // and log a spurious mbedTLS -76 "failed available check". With the whole
+    // body consumed (keep-alive is off), close it silently first. Incomplete
+    // or failed transfers keep the library's normal error reporting.
+    if (bodyComplete) client->stop();
     http->end();
     endMs = millis() - endStart;
     return ok;
