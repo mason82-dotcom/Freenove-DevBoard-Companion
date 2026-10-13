@@ -45,7 +45,7 @@ class ActiveArchitectureTests(unittest.TestCase):
             self.assertIn(field, self.gui)
         for api in ("millis() / 1000", "ESP.getFreeHeap()", "ESP.getFreePsram()"):
             self.assertIn(api, self.gui)
-        self.assertIn("shownPage == 5 && now - lastSystemRefresh >= 1000", self.gui)
+        self.assertIn("showing(CompanionModules::Id::System) && now - lastSystemRefresh >= 1000", self.gui)
 
     def test_placeholder_modules_have_no_transport_actions(self):
         self.assertIn("Noch keine Verbindung / keine Befehle", self.gui)
@@ -59,13 +59,13 @@ class ActiveArchitectureTests(unittest.TestCase):
         self.assertIn("module.id == CompanionModules::Id::PulsOx", self.gui)
         self.assertIn("PulsOx::begin()", self.gui)
         poll = self.gui.split("void poll()", 1)[1]
-        self.assertIn("if (shownPage == 6) PulsOx::requestActive(false);", poll)
-        self.assertIn("if (shownPage == 6) PulsOx::requestActive(true);", poll)
+        self.assertIn("if (showing(CompanionModules::Id::PulsOx)) PulsOx::requestActive(false);", poll)
+        self.assertIn("if (showing(CompanionModules::Id::PulsOx)) PulsOx::requestActive(true);", poll)
         self.assertLess(poll.index("PulsOx::requestActive(false)"),
                         poll.index("shownPage = requestedPage"))
         self.assertLess(poll.index("showModule(shownPage)"),
                         poll.index("PulsOx::requestActive(true)"))
-        self.assertIn("shownPage == 6 && pulsOxLabel && now - lastPulsOxRefresh >= 500", poll)
+        self.assertIn("showing(CompanionModules::Id::PulsOx) && pulsOxLabel && now - lastPulsOxRefresh >= 500", poll)
         self.assertIn("PulsOx::format(PulsOx::read(), now, rows)", poll)
         self.assertIn('"%s\\n%s\\n%s\\n%s"', poll)
 
@@ -132,6 +132,20 @@ class ActiveArchitectureTests(unittest.TestCase):
         self.assertIn("((xh & 0x0F) << 8) | xl", self.touch)
         self.assertIn("((yh & 0x0F) << 8) | yl", self.touch)
         self.assertEqual(self.touch.count("Wire.write("), 1)
+
+    def test_pages_resolve_through_module_ids(self):
+        poll = self.gui.split("void poll()", 1)[1]
+        self.assertNotRegex(poll, r"shownPage == [1-9]")
+        self.assertIn("CompanionModules::kModules[shownPage - 1].id == id", self.gui)
+
+    def test_pulsox_page_draws_bounded_ir_trace(self):
+        poll = self.gui.split("void poll()", 1)[1]
+        self.assertIn("constexpr uint16_t kWavePoints = 100", self.gui)
+        self.assertIn("PulsOx::readWave(raw, kWavePoints)", self.gui)
+        self.assertIn("lv_chart_set_ext_y_array(pulsOxChart, pulsOxSeries, wavePoints)", self.gui)
+        self.assertIn("pulsOxChart = nullptr", self.gui)
+        self.assertIn("now - lastPulsOxWave >= 200", poll)
+        self.assertNotIn("sensor.", self.gui)
 
 
 if __name__ == "__main__":

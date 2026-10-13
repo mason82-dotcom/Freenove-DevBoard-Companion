@@ -3,8 +3,8 @@
 #include <stdint.h>
 
 // The navigation model deliberately contains no network endpoints or actions.
-// Individual modules remain disabled placeholders until their dedicated
-// read-only integration has been separately tested.
+// Modules stay placeholders until their dedicated read-only integration has
+// been separately tested (active: Hermes status, System, PulsOx).
 namespace CompanionModules {
 enum class Id : uint8_t { Hermes, Webradio, Obd2, Drone, System, PulsOx };
 
@@ -15,7 +15,7 @@ struct Module {
 };
 
 constexpr Module kModules[] = {
-    {Id::Hermes,   "Hermes",   "Status: noch nicht verbunden"},
+    {Id::Hermes,   "Hermes",   "Read-only Status ueber HTTPS"},
     {Id::Webradio, "Webradio", "Status: Audiomodul noch nicht aktiv"},
     {Id::Obd2,    "OBD2",     "Status: read-only ELM327 noch nicht aktiv"},
     {Id::Drone,   "Drohne",   "Status: Telemetrie noch nicht verbunden"},

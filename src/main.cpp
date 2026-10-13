@@ -9,6 +9,10 @@
 // Rebuild with -DCOMPANION_DIAGNOSTIC_BOOT=1 for paused staged startup.
 // Serial commands 0=pause, 1=LVGL without TFT SPI, 2=normal LVGL/SPI.
 // No persistent settings, internet, OBD, drone, or camera actions.
+#ifndef COMPANION_HEARTBEAT_MS
+#define COMPANION_HEARTBEAT_MS 10000  // serial health line; 2000 for crash hunts
+#endif
+
 namespace {
 uint32_t lastHeartbeatMs = 0;
 bool uiReady = false;
@@ -48,7 +52,7 @@ void loop() {
     if (uiReady) CompanionUi::poll();
 
     const uint32_t now = millis();
-    if (now - lastHeartbeatMs >= 2000) {
+    if (now - lastHeartbeatMs >= COMPANION_HEARTBEAT_MS) {
         lastHeartbeatMs = now;
         Serial.printf(
             "DIAG heartbeat: uptime=%lu ms stage=%u heap=%u psram=%u loop_stack_hwm=%u\n",

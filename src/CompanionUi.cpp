@@ -36,8 +36,14 @@ uint32_t lastTick = 0;
 uint32_t lastSystemRefresh = 0;
 uint32_t lastPulsOxRefresh = 0;
 lv_obj_t* pulsOxLabel = nullptr;
+lv_obj_t* pulsOxChart = nullptr;
+lv_chart_series_t* pulsOxSeries = nullptr;
+uint32_t lastPulsOxWave = 0;
 lv_obj_t* hermesLabel = nullptr;
 uint32_t lastHermesRefresh = 0;
+// IR trace: 100 samples at 25 Hz = 4 s; LVGL reads this array directly.
+constexpr uint16_t kWavePoints = 100;
+static lv_coord_t wavePoints[kWavePoints];
 bool touchEnabled = false;
 bool ready = false;
 uint8_t diagStage = 0;  // Assigned in begin: normal 2, diagnostic 0.
@@ -47,6 +53,12 @@ uint32_t diagFlushCount = 0;
 uint8_t shownPage = 0;
 uint8_t requestedPage = 0;
 uint8_t moduleNumbers[CompanionModules::kModuleCount] = {1, 2, 3, 4, 5, 6};
+
+// Pages are resolved through the module registry, not hard-coded numbers.
+bool showing(CompanionModules::Id id) {
+    return shownPage >= 1 && shownPage <= CompanionModules::kModuleCount &&
+           CompanionModules::kModules[shownPage - 1].id == id;
+}
 
 lv_color_t color(uint32_t rgb) {
     return lv_color_hex(rgb);
@@ -70,7 +82,7 @@ void flushDisplay(lv_disp_drv_t* disp, const lv_area_t* area, lv_color_t* colors
         lv_disp_flush_ready(disp);
         return;
     }
-    // LVGL 9.6 supplies RGB565 because the display color format is explicitly set.
+    // LVGL 8 renders RGB565 (LV_COLOR_DEPTH 16); swap to panel byte order here.
     const uint32_t w = static_cast<uint32_t>(area->x2 - area->x1 + 1);
     const uint32_t h = static_cast<uint32_t>(area->y2 - area->y1 + 1);
     if (diagFlushCount == 1) {
@@ -117,6 +129,8 @@ void makeScreenBlank() {
     lv_obj_set_style_bg_color(root, color(0x0B1220), 0);
     statusLabel = nullptr;
     pulsOxLabel = nullptr;
+    pulsOxChart = nullptr;
+    pulsOxSeries = nullptr;
     hermesLabel = nullptr;
 }
 
@@ -173,39 +187,51 @@ void showHome() {
 }
 
 void updateSystemDetails() {
-    if (statusLabel == nullptr || shownPage != 5) return;
+    if (statusLabel == nullptr || !showing(CompanionModules::Id::System)) return;
+    const auto hermes = HermesStatus::read();
+    char wifi[24];
+    if (!hermes.configured) snprintf(wifi, sizeof(wifi), "nicht konfiguriert");
+    else if (!hermes.connected) snprintf(wifi, sizeof(wifi), "offline");
+    else snprintf(wifi, sizeof(wifi), "%d dBm", static_cast<int>(hermes.rssi));
     lv_label_set_text_fmt(statusLabel,
-        "Uptime: %lu s\nHeap frei: %u B\nPSRAM frei: %u B",
+        "Uptime: %lu s\nHeap frei: %u B (min %u B)\nGroesster Block: %u B\n"
+        "PSRAM frei: %u B\nCPU: %u MHz | WLAN: %s",
         static_cast<unsigned long>(millis() / 1000),
         static_cast<unsigned>(ESP.getFreeHeap()),
-        static_cast<unsigned>(ESP.getFreePsram()));
+        static_cast<unsigned>(ESP.getMinFreeHeap()),
+        static_cast<unsigned>(ESP.getMaxAllocHeap()),
+        static_cast<unsigned>(ESP.getFreePsram()),
+        static_cast<unsigned>(ESP.getCpuFreqMHz()), wifi);
 }
 
 void updateHermesDetails() {
-    if (shownPage != 1 || !hermesLabel) return;
-    const auto s = HermesStatus::read();
-    if (!s.configured) {
-        lv_label_set_text(hermesLabel, "Hermes: Konfiguration fehlt");
-    } else if (!s.connected) {
-        lv_label_set_text(hermesLabel, "WLAN: offline");
-    } else if (!s.valid) {
-        lv_label_set_text_fmt(hermesLabel, "Hermes: keine gueltigen Daten\nHTTP: %d", s.httpCode);
-    } else {
-        char cpu[20], ram[20], load[20];
-        if (s.hasCpuTemp) snprintf(cpu, sizeof(cpu), "%.1f C", s.cpuTempC);
-        else snprintf(cpu, sizeof(cpu), "--");
-        if (s.hasRam) snprintf(ram, sizeof(ram), "%.1f %%", s.ramUsedPct);
-        else snprintf(ram, sizeof(ram), "--");
-        if (s.hasLoad) snprintf(load, sizeof(load), "%.2f", s.load1);
-        else snprintf(load, sizeof(load), "--");
-        lv_label_set_text_fmt(hermesLabel,
-            "API: %s | Probe: %s\nGateway: %s | Dashboard: %s\nPi CPU: %s | RAM: %s\nLoad: %s | Chat: %s",
-            s.fresh && s.apiHealthy ? "OK" : "NICHT OK",
-            s.fresh ? "aktuell" : "veraltet",
-            !s.fresh || !s.gatewayKnown ? "--" : s.gatewayRunning ? "AN" : "AUS",
-            s.fresh && s.dashboardReachable ? "OK" : "nicht OK",
-            cpu, ram, load, s.chatEnabled ? "AN" : "AUS");
+    if (!hermesLabel || !showing(CompanionModules::Id::Hermes)) return;
+    char text[224];
+    HermesStatus::format(HermesStatus::read(), millis(), text, sizeof(text));
+    lv_label_set_text(hermesLabel, text);
+}
+
+void updatePulsOxWave() {
+    if (!pulsOxChart || !pulsOxSeries) return;
+    uint16_t raw[kWavePoints];
+    const uint16_t n = PulsOx::readWave(raw, kWavePoints);
+    if (n < 2) {
+        lv_chart_set_all_value(pulsOxChart, pulsOxSeries, LV_CHART_POINT_NONE);
+        return;
     }
+    uint16_t lo = raw[0], hi = raw[0];
+    for (uint16_t i = 1; i < n; ++i) {
+        if (raw[i] < lo) lo = raw[i];
+        if (raw[i] > hi) hi = raw[i];
+    }
+    // Auto-scale the small AC component; invert so systolic peaks point up.
+    const uint32_t span = hi - lo < 8 ? 8u : static_cast<uint32_t>(hi - lo);
+    const uint16_t pad = kWavePoints - n;
+    for (uint16_t i = 0; i < kWavePoints; ++i) {
+        wavePoints[i] = i < pad ? LV_CHART_POINT_NONE
+            : static_cast<lv_coord_t>((static_cast<uint32_t>(hi - raw[i - pad]) * 100u) / span);
+    }
+    lv_chart_refresh(pulsOxChart);
 }
 
 void showModule(uint8_t page) {
@@ -227,9 +253,13 @@ void showModule(uint8_t page) {
     lv_obj_clear_flag(panel, LV_OBJ_FLAG_SCROLLABLE);
 
     // Hermes has live connection state; do not show its static placeholder status.
-    newLabel(panel, module.id == CompanionModules::Id::Hermes
-                        ? "Hermes Live-Status" : module.detail,
-             9, 10, 0xCFDFED);
+    // PulsOx needs the full panel height: its first row is the live sensor state.
+    // Panel content area (theme padding 10 px): about 278 x 122 px.
+    if (module.id != CompanionModules::Id::PulsOx) {
+        newLabel(panel, module.id == CompanionModules::Id::Hermes
+                            ? "Hermes Live-Status" : module.detail,
+                 9, 10, 0xCFDFED);
+    }
     if (module.id == CompanionModules::Id::Hermes) {
         hermesLabel = newLabel(panel, "Hermes wird abgefragt ...", 9, 35, 0x81DDBC);
         updateHermesDetails();
@@ -237,8 +267,23 @@ void showModule(uint8_t page) {
         statusLabel = newLabel(panel, "", 9, 42, 0x81DDBC);
         updateSystemDetails();
     } else if (module.id == CompanionModules::Id::PulsOx) {
-        pulsOxLabel = newLabel(panel, "MAX30102 wird gestartet ...", 9, 39, 0x81DDBC);
-        newLabel(panel, "Messwerte nur zur Orientierung", 9, 105, 0x91A8C1);
+        pulsOxLabel = newLabel(panel, "MAX30102 wird gestartet ...", 9, 0, 0x81DDBC);
+        pulsOxChart = lv_chart_create(panel);
+        lv_obj_set_pos(pulsOxChart, 9, 62);
+        lv_obj_set_size(pulsOxChart, 260, 38);
+        lv_chart_set_type(pulsOxChart, LV_CHART_TYPE_LINE);
+        lv_chart_set_point_count(pulsOxChart, kWavePoints);
+        lv_chart_set_range(pulsOxChart, LV_CHART_AXIS_PRIMARY_Y, 0, 100);
+        lv_chart_set_div_line_count(pulsOxChart, 0, 0);
+        lv_obj_set_style_size(pulsOxChart, 0, LV_PART_INDICATOR);  // no point dots
+        lv_obj_set_style_pad_all(pulsOxChart, 2, 0);
+        lv_obj_set_style_bg_color(pulsOxChart, color(0x0B1220), 0);
+        lv_obj_set_style_border_color(pulsOxChart, color(0x36516B), 0);
+        pulsOxSeries = lv_chart_add_series(pulsOxChart, color(0xFF7A85),
+                                           LV_CHART_AXIS_PRIMARY_Y);
+        for (auto& point : wavePoints) point = LV_CHART_POINT_NONE;
+        lv_chart_set_ext_y_array(pulsOxChart, pulsOxSeries, wavePoints);
+        newLabel(panel, "Messwerte nur zur Orientierung", 9, 104, 0x91A8C1);
     } else {
         newLabel(panel, "Noch keine Verbindung / keine Befehle", 9, 51, 0x91A8C1);
     }
@@ -335,7 +380,7 @@ void poll() {
     lv_timer_handler();
 
     if (requestedPage != shownPage) {
-        if (shownPage == 6) PulsOx::requestActive(false);
+        if (showing(CompanionModules::Id::PulsOx)) PulsOx::requestActive(false);
         shownPage = requestedPage;
         if (shownPage == 0) {
             Serial.println("UI NAV: Home");
@@ -344,22 +389,26 @@ void poll() {
             Serial.printf("UI NAV: %s\n",
                           CompanionModules::kModules[shownPage - 1].title);
             showModule(shownPage);
-            if (shownPage == 6) PulsOx::requestActive(true);
+            if (showing(CompanionModules::Id::PulsOx)) PulsOx::requestActive(true);
         }
     }
 
-    if (shownPage == 6 && pulsOxLabel && now - lastPulsOxRefresh >= 500) {
+    if (showing(CompanionModules::Id::PulsOx) && pulsOxLabel && now - lastPulsOxRefresh >= 500) {
         lastPulsOxRefresh = now;
         char rows[4][52] = {};
         PulsOx::format(PulsOx::read(), now, rows);
         lv_label_set_text_fmt(pulsOxLabel, "%s\n%s\n%s\n%s",
                               rows[0], rows[1], rows[2], rows[3]);
     }
-    if (shownPage == 1 && now - lastHermesRefresh >= 1000) {
+    if (showing(CompanionModules::Id::PulsOx) && now - lastPulsOxWave >= 200) {
+        lastPulsOxWave = now;
+        updatePulsOxWave();
+    }
+    if (showing(CompanionModules::Id::Hermes) && now - lastHermesRefresh >= 1000) {
         lastHermesRefresh = now;
         updateHermesDetails();
     }
-    if (shownPage == 5 && now - lastSystemRefresh >= 1000) {
+    if (showing(CompanionModules::Id::System) && now - lastSystemRefresh >= 1000) {
         lastSystemRefresh = now;
         updateSystemDetails();
     }
