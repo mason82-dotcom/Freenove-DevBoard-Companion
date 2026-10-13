@@ -9,6 +9,8 @@
 #include "Obd2Status.h"
 #include "PulsOxSensor.h"
 #include "TouchTransform.h"
+#include "WebradioPlayer.h"
+#include "WebradioStations.h"
 #include "WifiLink.h"
 
 static_assert(LVGL_VERSION_MAJOR == 8 && LVGL_VERSION_MINOR == 3,
@@ -45,6 +47,12 @@ lv_obj_t* hermesLabel = nullptr;
 uint32_t lastHermesRefresh = 0;
 lv_obj_t* obd2Label = nullptr;
 uint32_t lastObd2Refresh = 0;
+lv_obj_t* radioStation = nullptr;
+lv_obj_t* radioTitle = nullptr;
+lv_obj_t* radioStatus = nullptr;
+lv_obj_t* radioVolume = nullptr;
+lv_obj_t* radioPlayLabel = nullptr;
+uint32_t lastRadioRefresh = 0;
 // IR trace: 100 samples at 25 Hz = 4 s; LVGL reads this array directly.
 constexpr uint16_t kWavePoints = 100;
 static lv_coord_t wavePoints[kWavePoints];
@@ -137,6 +145,7 @@ void makeScreenBlank() {
     pulsOxSeries = nullptr;
     hermesLabel = nullptr;
     obd2Label = nullptr;
+    radioStation = radioTitle = radioStatus = radioVolume = radioPlayLabel = nullptr;
 }
 
 void onTileClicked(lv_event_t* event) {
@@ -216,6 +225,33 @@ void updateHermesDetails() {
     lv_label_set_text(hermesLabel, text);
 }
 
+// Re-setting identical text would restart the scrolling title animation.
+void setTextIfChanged(lv_obj_t* label, const char* text) {
+    if (label != nullptr && strcmp(lv_label_get_text(label), text) != 0)
+        lv_label_set_text(label, text);
+}
+
+void updateRadioDetails() {
+    if (!radioStation || !showing(CompanionModules::Id::Webradio)) return;
+    const Webradio::View v = Webradio::view();
+    char line[64];
+    snprintf(line, sizeof(line), "%u/%u  %s", static_cast<unsigned>(v.index + 1),
+             static_cast<unsigned>(Webradio::kStationCount), v.name);
+    setTextIfChanged(radioStation, line);
+    setTextIfChanged(radioTitle, v.title[0] ? v.title : "-");
+    Webradio::formatStatus(v.phase, v.attempt, v.bitrate, v.codec, line, sizeof(line));
+    setTextIfChanged(radioStatus, line);
+    snprintf(line, sizeof(line), "Lautstaerke: %d/%d", v.volume, RadioEngine::kMaxVolume);
+    setTextIfChanged(radioVolume, line);
+    setTextIfChanged(radioPlayLabel, v.wantsPlay ? LV_SYMBOL_STOP " Stop" : LV_SYMBOL_PLAY " Play");
+}
+
+void onRadioPrev(lv_event_t*) { Webradio::step(-1); }
+void onRadioNext(lv_event_t*) { Webradio::step(1); }
+void onRadioPlay(lv_event_t*) { Webradio::togglePlay(); }
+void onRadioQuieter(lv_event_t*) { Webradio::changeVolume(-1); }
+void onRadioLouder(lv_event_t*) { Webradio::changeVolume(1); }
+
 void updateObd2Details() {
     if (!obd2Label || !showing(CompanionModules::Id::Obd2)) return;
     char text[320];
@@ -268,7 +304,8 @@ void showModule(uint8_t page) {
     // PulsOx needs the full panel height: its first row is the live sensor state.
     // Panel content area (theme padding 10 px): about 278 x 122 px.
     if (module.id != CompanionModules::Id::PulsOx &&
-        module.id != CompanionModules::Id::Obd2) {
+        module.id != CompanionModules::Id::Obd2 &&
+        module.id != CompanionModules::Id::Webradio) {
         newLabel(panel, module.id == CompanionModules::Id::Hermes
                             ? "Hermes Live-Status" : module.detail,
                  9, 10, 0xCFDFED);
@@ -276,6 +313,28 @@ void showModule(uint8_t page) {
     if (module.id == CompanionModules::Id::Hermes) {
         hermesLabel = newLabel(panel, "Hermes wird abgefragt ...", 9, 35, 0x81DDBC);
         updateHermesDetails();
+    } else if (module.id == CompanionModules::Id::Webradio) {
+        radioStation = newLabel(panel, "", 0, 0, 0xF1F6FF);
+        lv_label_set_long_mode(radioStation, LV_LABEL_LONG_DOT);
+        lv_obj_set_width(radioStation, 274);
+        radioTitle = newLabel(panel, "", 0, 18, 0x81DDBC);
+        lv_label_set_long_mode(radioTitle, LV_LABEL_LONG_SCROLL_CIRCULAR);
+        lv_obj_set_width(radioTitle, 274);
+        radioStatus = newLabel(panel, "", 0, 36, 0x91A8C1);
+        struct { int x, w; const char* text; lv_event_cb_t cb; } buttons[] = {
+            {0, 48, LV_SYMBOL_PREV, onRadioPrev},
+            {54, 84, LV_SYMBOL_PLAY " Play", onRadioPlay},
+            {144, 48, LV_SYMBOL_NEXT, onRadioNext},
+            {200, 36, "-", onRadioQuieter},
+            {240, 36, "+", onRadioLouder},
+        };
+        for (const auto& b : buttons) {
+            lv_obj_t* button = makeButton(panel, b.x, 56, b.w, 34, b.text, 0x25415D);
+            lv_obj_add_event_cb(button, b.cb, LV_EVENT_CLICKED, nullptr);
+            if (b.cb == onRadioPlay) radioPlayLabel = lv_obj_get_child(button, 0);
+        }
+        radioVolume = newLabel(panel, "", 0, 100, 0x91A8C1);
+        updateRadioDetails();
     } else if (module.id == CompanionModules::Id::Obd2) {
         obd2Label = newLabel(panel, "ELM327 wird verbunden ...", 9, 0, 0x81DDBC);
         updateObd2Details();
@@ -303,7 +362,9 @@ void showModule(uint8_t page) {
     } else {
         newLabel(panel, "Noch keine Verbindung / keine Befehle", 9, 51, 0x91A8C1);
     }
-    if (module.id == CompanionModules::Id::Obd2) {
+    if (module.id == CompanionModules::Id::Webradio) {
+        newLabel(root, "Stream laeuft im Hintergrund weiter", 10, 212, 0x8EA8C1);
+    } else if (module.id == CompanionModules::Id::Obd2) {
         // Seven data rows fill the panel; the read-only notice is the footer.
         newLabel(root, Obd2Status::vehicleProfile()
                            ? "Nur Lesen | nur im Stillstand bedienen"
@@ -358,6 +419,7 @@ bool begin(bool touchPresent) {
                   static_cast<void*>(pointer),
                   static_cast<unsigned>(sizeof(drawPixels)));
     WifiLink::begin();
+    Webradio::begin();
     HermesStatus::begin();
     Obd2Status::begin();
     lastTick = millis();
@@ -430,6 +492,11 @@ void poll() {
     if (showing(CompanionModules::Id::PulsOx) && now - lastPulsOxWave >= 200) {
         lastPulsOxWave = now;
         updatePulsOxWave();
+    }
+    Webradio::service(now);
+    if (showing(CompanionModules::Id::Webradio) && now - lastRadioRefresh >= 250) {
+        lastRadioRefresh = now;
+        updateRadioDetails();
     }
     if (showing(CompanionModules::Id::Obd2) && now - lastObd2Refresh >= 500) {
         lastObd2Refresh = now;

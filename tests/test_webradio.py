@@ -1,0 +1,77 @@
+"""Contracts for the Webradio module (engine port, player, page)."""
+import re
+import shutil
+import subprocess
+import tempfile
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def code_only(text):
+    text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+    return re.sub(r"//[^\n]*", "", text)
+
+
+def read(path):
+    return code_only((ROOT / path).read_text(encoding="utf-8"))
+
+
+class WebradioTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.engine = read("src/RadioEngine.cpp")
+        cls.player = read("src/WebradioPlayer.cpp")
+        cls.gui = read("src/CompanionUi.cpp")
+        cls.ini = (ROOT / "platformio.ini").read_text(encoding="utf-8")
+
+    def test_library_is_pinned(self):
+        self.assertIn("https://github.com/schreibfaul1/ESP32-audioI2S.git#3.4.7", self.ini)
+        self.assertIn("-DCORE_DEBUG_LEVEL=1", self.ini)
+
+    def test_engine_owns_audio_and_never_touches_lvgl(self):
+        self.assertIn("Audio audio;", self.engine)
+        for source in (self.engine, self.player):
+            self.assertNotIn("lv_", source)
+            self.assertNotIn("lvgl.h", source)
+        for source in (self.gui, self.player):
+            self.assertNotIn("Audio.h", source)
+            self.assertNotIn("audio.", source)
+        self.assertIn("audio.setPinout(BoardPins::kAudioBclk, BoardPins::kAudioWs,", self.engine)
+        self.assertIn("if (e.gen != gen) continue;", self.player)
+        self.assertIn("kConnectTimeoutMs = 15000", self.engine)
+
+    def test_no_server_storage_or_recording(self):
+        for name in ("src/RadioEngine.cpp", "src/WebradioPlayer.cpp", "src/WebradioText.cpp"):
+            text = read(name)
+            for forbidden in ("WebServer", "Preferences", "nvs_", "SD.open", "SD_MMC.",
+                              "FFat.", "Update.", "setInsecure(", "WiFi.begin("):
+                with self.subTest(file=name, symbol=forbidden):
+                    self.assertNotIn(forbidden, text)
+
+    def test_player_waits_for_home_wifi_and_limits_retries(self):
+        self.assertIn("WifiLink::connectedTo(WifiLink::Profile::Home)", self.player)
+        self.assertIn("if (attempt < Webradio::kMaxRetries)", self.player)
+        poll = self.gui.split("void poll()", 1)[1]
+        self.assertIn("Webradio::service(now);", poll)
+        self.assertIn("setTextIfChanged(radioTitle", self.gui)
+        self.assertIn("LV_LABEL_LONG_SCROLL_CIRCULAR", self.gui)
+
+    def test_native_text_and_stations(self):
+        compiler = shutil.which("g++") or shutil.which("clang++")
+        if not compiler:
+            self.skipTest("Native C++ compiler unavailable")
+        with tempfile.TemporaryDirectory(prefix="fnk0086-radio-") as tmp:
+            binary = Path(tmp) / "webradio_smoke"
+            cmd = [compiler, "-std=c++17", "-Wall", "-Wextra", "-Werror", "-pedantic",
+                   "-I" + str(ROOT / "include"), str(ROOT / "tests" / "webradio_smoke.cpp"),
+                   str(ROOT / "src" / "WebradioText.cpp"), "-o", str(binary)]
+            compiled = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            self.assertEqual(compiled.returncode, 0, compiled.stdout + compiled.stderr)
+            ran = subprocess.run([str(binary)], capture_output=True, text=True, timeout=30)
+            self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)
+
+
+if __name__ == "__main__":
+    unittest.main()
