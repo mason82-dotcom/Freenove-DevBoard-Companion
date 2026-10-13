@@ -10,3 +10,5 @@ secrets.*
 config/private/
 # Populated Hermes credentials (Wi-Fi, device token, CA). Template stays tracked.
 include/HermesLocalConfig.h
+# Local OBD2 adapter endpoint (lab/vehicle). Template stays tracked.
+include/Obd2LocalConfig.h
