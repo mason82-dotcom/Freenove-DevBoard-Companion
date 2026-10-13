@@ -1,7 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include <GUIslice.h>
-#include "CompanionModules.h"
+#include "CompanionGuiModules.h"
 
 // Native GUIslice drawn widgets; only the GUI loop may draw to the ST7789.
 // No second TFT_eSPI/LovyanGFX display instance is created.
