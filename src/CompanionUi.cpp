@@ -226,7 +226,10 @@ void showModule(uint8_t page) {
     lv_obj_set_style_radius(panel, 8, 0);
     lv_obj_clear_flag(panel, LV_OBJ_FLAG_SCROLLABLE);
 
-    newLabel(panel, module.detail, 9, 10, 0xCFDFED);
+    // Hermes has live connection state; do not show its static placeholder status.
+    newLabel(panel, module.id == CompanionModules::Id::Hermes
+                        ? "Hermes Live-Status" : module.detail,
+             9, 10, 0xCFDFED);
     if (module.id == CompanionModules::Id::Hermes) {
         hermesLabel = newLabel(panel, "Hermes wird abgefragt ...", 9, 35, 0x81DDBC);
         updateHermesDetails();
