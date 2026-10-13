@@ -240,9 +240,9 @@ void loop() {
             if (currentPage == 5) ModuleGraphics::sampleSystem(ESP.getFreeHeap());
             ModuleGraphics::refresh(&gui, currentPage - 1);
         }
-        // Pulse waveform: 8 FPS on the UI task, no direct Wire access.
+        // Pulse waveform: 4 FPS reduces ST7789 full-canvas redraw flicker.\n        // No direct Wire access on the UI task.
         static uint32_t lastPulseCanvasMs = 0;
-        if (currentPage == 6 && now - lastPulseCanvasMs >= 125) {
+        if (currentPage == 6 && now - lastPulseCanvasMs >= 250) {
             lastPulseCanvasMs = now;
             ModuleGraphics::refresh(&gui, 5);
         }
