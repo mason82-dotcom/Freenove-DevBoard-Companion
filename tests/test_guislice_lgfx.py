@@ -106,7 +106,7 @@ class GUIsliceLovyanPrototypeTests(unittest.TestCase):
         backend = PROTO / "src" / "modules"
         sources = ["HermesModule.cpp", "WebradioModule.cpp",
                    "Obd2Module.cpp", "DroneModule.cpp",
-                   "SystemModule.cpp", "CameraModule.cpp"]
+                   "SystemModule.cpp", "PulseOxModule.cpp"]
         self.assertEqual(len(sources), 6)
         for filename in sources:
             body = (backend / filename).read_text()
@@ -120,10 +120,36 @@ class GUIsliceLovyanPrototypeTests(unittest.TestCase):
         dispatch = (PROTO / "src" / "ModuleDiagnostics.cpp").read_text()
         self.assertIn("constexpr uint8_t kRows = 4", header)
         for name in ("hermes", "webradio", "obd2", "drone",
-                     "system", "camera"):
+                     "system", "pulseOx"):
             self.assertIn(f"Adapter::{name}(out, uptimeMs);", dispatch)
         self.assertIn("ESP.getFreeHeap()", (backend / "SystemModule.cpp").read_text())
         self.assertIn("ESP.getFreePsram()", (backend / "SystemModule.cpp").read_text())
+
+    def test_six_graphical_pages_and_pulsox_from_source(self):
+        graphics = (PROTO / "src" / "ModuleGraphics.cpp").read_text()
+        touch = (PROTO / "src" / "BoardTouch.cpp").read_text()
+        sensor = (PROTO / "src" / "PulsOxSensor.cpp").read_text()
+        self.assertIn("ModuleGraphics::bind(i, canvasRefs[i]);", self.main)
+        self.assertIn("gslc_ElemSetDrawFunc(&gui, canvasRefs[i], &ModuleGraphics::draw);", self.main)
+        self.assertIn("gslc_ElemCreateBox(", self.main)
+        self.assertIn("PulsOx::begin()", self.main)
+        self.assertIn("case CompanionModules::Id::PulseOx: pulse(g,r);", graphics)
+        self.assertIn("case CompanionModules::Id::System: sys(g,r);", graphics)
+        self.assertIn("PulsOx::readWave(samples,128)", graphics)
+        self.assertIn("gslc_DrawLine(", graphics)
+        self.assertIn("gslc_DrawFillRect(", graphics)
+        self.assertIn("SharedI2C::Guard lock(8);", touch)
+        self.assertIn("SharedI2C::Guard lock(30);", sensor)
+        self.assertIn("maxim_heart_rate_and_oxygen_saturation(", sensor)
+        self.assertIn("checkForBeat(", sensor)
+        self.assertIn("static_assert(kEffectiveHz==25", sensor)
+        self.assertNotIn("TFT_eSPI s_tft", graphics)
+        self.assertNotIn("TFT_eSPI s_tft", self.main)
+        self.assertIn("SparkFun MAX3010x Pulse and Proximity Sensor Library@1.1.2",
+                      self.ini["env:fnk0086_lgfx"]["lib_deps"])
+        modules = (PROTO / "include" / "CompanionGuiModules.h").read_text()
+        self.assertIn('Id::PulseOx, "PulsOx"', modules)
+        self.assertNotIn("Id::Camera", modules)
 
     def test_touch_is_single_mapped_source(self):
         self.assertRegex(self.cfg, r"(?m)^\s*#define DRV_TOUCH_HANDLER\b")

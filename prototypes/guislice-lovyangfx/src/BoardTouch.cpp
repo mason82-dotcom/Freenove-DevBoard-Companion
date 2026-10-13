@@ -2,6 +2,7 @@
 #include <Wire.h>
 #include "BoardPins.h"
 #include "BoardTouch.h"
+#include "SharedI2C.h"
 
 namespace {
 bool found = false;
@@ -10,8 +11,9 @@ bool found = false;
 namespace BoardTouch {
 
 bool begin() {
-    Wire.begin(BoardPins::kTouchSda, BoardPins::kTouchScl);
-    Wire.setTimeOut(20);
+    if (!SharedI2C::begin()) return false;
+    SharedI2C::Guard lock;
+    if (!lock) return false;
     Wire.beginTransmission(BoardPins::kTouchAddress);
     found = Wire.endTransmission() == 0;
     return found;
@@ -25,6 +27,9 @@ bool readRaw(uint16_t& x, uint16_t& y) {
     if (!found) return false;
 
     // TD_STATUS(0x02), P1_XH, P1_XL, P1_YH, P1_YL.
+    // MAX30102 sensor FIFO is accessed on a separate core: serialize I2C.
+    SharedI2C::Guard lock(8);
+    if (!lock) return false;
     Wire.beginTransmission(BoardPins::kTouchAddress);
     Wire.write(static_cast<uint8_t>(0x02));
     if (Wire.endTransmission(false) != 0) return false;

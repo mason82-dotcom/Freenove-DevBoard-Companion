@@ -22,10 +22,12 @@ class SixModuleAdapterSmoke(unittest.TestCase):
         sources = [
             ROOT / "tests" / "module_diagnostics_smoke.cpp",
             src / "ModuleDiagnostics.cpp",
+            src / "PulsOxDisplay.cpp",
+            ROOT / "tests" / "fixtures" / "PulsOxSensorStub.cpp",
             *(src / "modules" / name for name in (
                 "HermesModule.cpp", "WebradioModule.cpp",
                 "Obd2Module.cpp", "DroneModule.cpp",
-                "SystemModule.cpp", "CameraModule.cpp",
+                "SystemModule.cpp", "PulseOxModule.cpp",
             )),
         ]
         with tempfile.TemporaryDirectory(prefix="fnk0086-modules-") as tmp:

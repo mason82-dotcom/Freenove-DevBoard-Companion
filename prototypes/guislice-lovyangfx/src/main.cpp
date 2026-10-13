@@ -6,8 +6,10 @@
 #include <GUIslice_th.h>
 
 #include "BoardTouch.h"
-#include "CompanionModules.h"
+#include "CompanionGuiModules.h"
 #include "ModuleDiagnostics.h"
+#include "ModuleGraphics.h"
+#include "PulsOxSensor.h"
 #include "TouchTransform.h"
 
 // EXPERIMENT: GUIslice GUI + LovyanGFX TFT_eSPI compatibility backend.
@@ -32,6 +34,7 @@ gslc_tsElemRef elementRefs[kPages][kItemsPerPage];
 // GUIslice elements keep pointers to these persistent writable buffers.
 // Always use gslc_ElemSetTxtStr() with a *separate* snapshot for redraw.
 gslc_tsElemRef* statusRefs[CompanionModules::kModuleCount][kStatusRows] = {};
+gslc_tsElemRef* canvasRefs[CompanionModules::kModuleCount] = {};
 char statusText[CompanionModules::kModuleCount][kStatusRows]
                [ModuleDiagnostics::kTextCapacity] = {};
 
@@ -155,19 +158,24 @@ bool buildGui() {
                        "< Zurueck")) return false;
         if (!addText(page, {94, 6, 212, 25},
                      const_cast<char*>(CompanionModules::kModules[i].title))) return false;
-        if (!addText(page, {12, 50, 294, 27},
+        if (!addText(page, {12, 42, 294, 20},
                      const_cast<char*>(CompanionModules::kModules[i].detail))) return false;
-        // All six pages use the same four-row status grid and an isolated
-        // adapter. The visible page gets a fresh snapshot every second.
+        // Each module owns a native GUIslice graphics canvas.
+        canvasRefs[i] = gslc_ElemCreateBox(&gui, GSLC_ID_AUTO,
+                                             page, {12, 65, 294, 84});
+        if (!canvasRefs[i]) return false;
+        ModuleGraphics::bind(i, canvasRefs[i]);
+        gslc_ElemSetDrawFunc(&gui, canvasRefs[i], &ModuleGraphics::draw);
+        // Live values remain in independent, persistent GUIslice text rows.
+        // The callback re-renders the canvas without another TFT driver.
         for (uint8_t row = 0; row < kStatusRows; ++row) {
-            const int16_t y = static_cast<int16_t>(80 + row * 29);
+            const int16_t y = static_cast<int16_t>(155 + row * 18);
             statusRefs[i][row] = addText(
-                page, {12, y, 294, 25}, statusText[i][row],
+                page, {12, y, 294, 17}, statusText[i][row],
                 sizeof(statusText[i][row]));
             if (!statusRefs[i][row]) return false;
         }
-        if (!addText(page, {10, 211, 300, 20},
-                     (char*)"Nur lokale Anzeige | CFG1")) return false;
+        // No redundant footer: the four diagnostic rows need the screen.
     }
 
     for (uint8_t i = 0; i < CompanionModules::kModuleCount; ++i) {
@@ -187,6 +195,12 @@ void setup() {
     gslc_InitDebug(printDebug);
     gslc_InitTouchHandler(&fnkTouch);
     initialized = buildGui();
+    // SharedI2C is established by FT6336U begin() during GUI init.
+    // Sensor failure never prevents the five other pages from working.
+    if (initialized) {
+        Serial.printf("PulsOx worker: %s\n",
+                      PulsOx::begin() ? "STARTED" : "OFFLINE");
+    }
     Serial.printf("GUI BOOT: %s, display=320x240, modules=%u\n",
                   initialized ? "OK" : "FAIL",
                   static_cast<unsigned>(CompanionModules::kModuleCount));
@@ -203,12 +217,21 @@ void loop() {
             if (currentPage > 0) updateModule(currentPage - 1, now);
             gslc_SetPageCur(&gui, currentPage);
             lastStatusMs = now;
+            if (currentPage > 0) ModuleGraphics::refresh(&gui, currentPage - 1);
             Serial.printf("UI NAV: %s\n", currentPage == 0 ? "Home" :
                  CompanionModules::kModules[currentPage - 1].title);
         }
         if (currentPage > 0 && now - lastStatusMs >= 1000) {
             lastStatusMs = now;
             updateModule(currentPage - 1, now);
+            if (currentPage == 5) ModuleGraphics::sampleSystem(ESP.getFreeHeap());
+            ModuleGraphics::refresh(&gui, currentPage - 1);
+        }
+        // Pulse waveform: 8 FPS on the UI task, no direct Wire access.
+        static uint32_t lastPulseCanvasMs = 0;
+        if (currentPage == 6 && now - lastPulseCanvasMs >= 125) {
+            lastPulseCanvasMs = now;
+            ModuleGraphics::refresh(&gui, 5);
         }
     }
     const uint32_t now = millis();
