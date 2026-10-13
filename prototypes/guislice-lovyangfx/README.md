@@ -45,6 +45,43 @@ The fixed `updateSystem()` formats the next Uptime, Heap and PSRAM strings into 
 
 **Hardware validation pending:** fetch the latest commit, compile with the *locally verified* CFG1 header, flash manually after checking the serial device, then verify the Uptime number increases once per second on the System page. Do not mark the live-refresh feature as passed from UART heartbeats alone.
 
+## Six independent live status modules (stacked PR #5)
+
+This next increment **preserves PR #4 as the working hardware baseline** and is implemented on `feature/guislice-six-modules`, based on the experiment branch. The firmware still has *zero* external-control side effects. The six pages use separate adapters in `src/modules/`, all dispatched by `ModuleDiagnostics::capture()`.
+
+| Module | Current read-only fields | Not yet connected / deliberately disabled |
+| --- | --- | --- |
+| Hermes | Agent link, gateway configuration, response status, diagnostic uptime | Pi Hermes-Agent API/auth |
+| Webradio | Audio status, verified I2S BCLK42/WS14/DOUT41, stream/SD state, diagnostic uptime | I2S startup, station selection, stream buffering |
+| OBD2 | ELM327 link, PID data state, zero TX, diagnostic uptime | Wi-Fi ELM327 and *strictly read-only* PID polling |
+| Drohne | Gateway, telemetry, command lockout, diagnostic uptime | FH-Clone / SkyHub / DJI telemetry API |
+| System | Actual uptime, free heap, free PSRAM, CPU MHz / minimum heap | Additional history charts |
+| Kamera | Camera sensor/preview status, actual available PSRAM, unverified camera pins | Camera GPIO configuration and frame capture |
+
+**Display update contract:** GUIslice owns six sets of four persistent text buffers. Once a second, **only the active module** gets a fresh local snapshot, and all new strings are passed through `gslc_ElemSetTxtStr()`. This preserves the already fixed live Uptime behavior (no in-place mutation before redraw). Every module refreshes immediately upon opening, and the status fields clear their own black background on refresh.
+
+**No connectivity implied:** A diagnostic string such as `Gateway: nicht verbunden` is a truthful unconfigured state, not a failed network probe; opening a module does **not** transmit OBD/ELM frames, drone commands, start I2S playback, activate the camera, or connect to remote services. Their adapters can be extended individually after credentials, safe read-only APIs and the physical pin map have been validated.
+
+### Check PR #5 without touching PR #4
+
+```bash
+cd ~/Projekte/Freenove-DevBoard-Companion
+git fetch origin feature/guislice-six-modules
+
+git worktree add --detach ../Freenove-DevBoard-Companion-six-modules \
+  origin/feature/guislice-six-modules
+
+# Copy the identical, locally validated CFG1 header (already ignored by Git)
+cp ~/Projekte/Freenove-DevBoard-Companion-lvgl9-test/include/VerifiedDisplaySetup.h \
+   ../Freenove-DevBoard-Companion-six-modules/include/
+
+cd ../Freenove-DevBoard-Companion-six-modules
+python3 -m unittest discover -s tests -v
+pio run -c platformio.guislice-lgfx.ini -e fnk0086_lgfx
+```
+
+Only after both builds pass and the user explicitly decides to do the first *new* hardware test, check `pio device list` and use PlatformIO's normal upload method. Do not use `firmware.factory.bin` or merge this experiment into `main`.
+
 ## Raspberry Pi build, without disturbing the working LVGL project
 
 Use a completely new Git worktree; do not perform a force reset and do not overwrite the original Pi checkout:

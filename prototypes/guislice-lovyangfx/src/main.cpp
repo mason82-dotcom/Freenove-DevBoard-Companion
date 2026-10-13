@@ -7,6 +7,7 @@
 
 #include "BoardTouch.h"
 #include "CompanionModules.h"
+#include "ModuleDiagnostics.h"
 #include "TouchTransform.h"
 
 // EXPERIMENT: GUIslice GUI + LovyanGFX TFT_eSPI compatibility backend.
@@ -17,6 +18,7 @@
 namespace {
 constexpr uint8_t kPages = 7;    // 0=Home; 1..6 = the existing Companion modules.
 constexpr uint8_t kItemsPerPage = 12;
+constexpr uint8_t kStatusRows = ModuleDiagnostics::kRows;
 constexpr int16_t kFontBody = 0;
 constexpr int16_t kHomeButtonBase = 10;
 constexpr int16_t kBackButtonBase = 100;
@@ -27,12 +29,11 @@ gslc_tsFont fonts[1];
 gslc_tsPage pages[kPages];
 gslc_tsElem elements[kPages][kItemsPerPage];
 gslc_tsElemRef elementRefs[kPages][kItemsPerPage];
-gslc_tsElemRef* statusUptime = nullptr;
-gslc_tsElemRef* statusHeap = nullptr;
-gslc_tsElemRef* statusPsram = nullptr;
-char uptimeText[44] = "Uptime: -- s";
-char heapText[44] = "Heap frei: -- B";
-char psramText[44] = "PSRAM frei: -- B";
+// GUIslice elements keep pointers to these persistent writable buffers.
+// Always use gslc_ElemSetTxtStr() with a *separate* snapshot for redraw.
+gslc_tsElemRef* statusRefs[CompanionModules::kModuleCount][kStatusRows] = {};
+char statusText[CompanionModules::kModuleCount][kStatusRows]
+               [ModuleDiagnostics::kTextCapacity] = {};
 
 uint8_t currentPage = 0;
 uint8_t requestedPage = 0;
@@ -107,24 +108,18 @@ bool addButton(int16_t page, int16_t id, gslc_tsRect rect, const char* label) {
     return true;
 }
 
-void updateSystem() {
-    // GUIslice retains pointers to uptimeText/heapText/psramText.
-    // Its gslc_ElemSetTxtStr() compares the current text against the
-    // incoming string before copying and invalidating for redraw.
-    // Never format directly into those retained buffers: comparison would
-    // be against the same, already overwritten text and never repaint.
-    char nextUptime[sizeof(uptimeText)];
-    char nextHeap[sizeof(heapText)];
-    char nextPsram[sizeof(psramText)];
-    snprintf(nextUptime, sizeof(nextUptime), "Uptime: %lu s",
-             static_cast<unsigned long>(millis() / 1000));
-    snprintf(nextHeap, sizeof(nextHeap), "Heap frei: %u B",
-             static_cast<unsigned>(ESP.getFreeHeap()));
-    snprintf(nextPsram, sizeof(nextPsram), "PSRAM frei: %u B",
-             static_cast<unsigned>(ESP.getFreePsram()));
-    if (statusUptime) gslc_ElemSetTxtStr(&gui, statusUptime, nextUptime);
-    if (statusHeap) gslc_ElemSetTxtStr(&gui, statusHeap, nextHeap);
-    if (statusPsram) gslc_ElemSetTxtStr(&gui, statusPsram, nextPsram);
+void updateModule(uint8_t moduleIndex, uint32_t nowMs) {
+    if (moduleIndex >= CompanionModules::kModuleCount) return;
+    ModuleDiagnostics::Snapshot next{};
+    if (!ModuleDiagnostics::capture(CompanionModules::kModules[moduleIndex].id,
+                                    next, nowMs)) return;
+    // A GUIslice element compares the existing retained buffer with the new
+    // string before copying and scheduling a redraw. Never format directly
+    // into statusText[][], or updates will silently stop.
+    for (uint8_t row = 0; row < kStatusRows; ++row) {
+        auto* ref = statusRefs[moduleIndex][row];
+        if (ref) gslc_ElemSetTxtStr(&gui, ref, next.text[row]);
+    }
 }
 
 bool buildGui() {
@@ -162,32 +157,23 @@ bool buildGui() {
                      const_cast<char*>(CompanionModules::kModules[i].title))) return false;
         if (!addText(page, {12, 50, 294, 27},
                      const_cast<char*>(CompanionModules::kModules[i].detail))) return false;
-        if (CompanionModules::kModules[i].id == CompanionModules::Id::System) {
-            statusUptime = addText(page, {12, 90, 294, 20},
-                                   uptimeText, sizeof(uptimeText));
-            statusHeap = addText(page, {12, 116, 294, 20},
-                                 heapText, sizeof(heapText));
-            statusPsram = addText(page, {12, 142, 294, 20},
-                                  psramText, sizeof(psramText));
-            if (!statusUptime || !statusHeap || !statusPsram) return false;
-            // Opaque black backgrounds clear old digits on incremental
-            // redraw (e.g. switching from 999 s to 1000 s).
-            gslc_tsElemRef* systemRefs[] = {statusUptime, statusHeap, statusPsram};
-            for (auto* ref : systemRefs) {
-                gslc_ElemSetCol(&gui, ref, GSLC_COL_BLACK,
-                                GSLC_COL_BLACK, GSLC_COL_BLACK);
-                gslc_ElemSetFillEn(&gui, ref, true);
-            }
-        } else {
-            if (!addText(page, {12, 112, 294, 32},
-                         (char*)"Nur Anzeige / keine Befehle")) return false;
+        // All six pages use the same four-row status grid and an isolated
+        // adapter. The visible page gets a fresh snapshot every second.
+        for (uint8_t row = 0; row < kStatusRows; ++row) {
+            const int16_t y = static_cast<int16_t>(80 + row * 29);
+            statusRefs[i][row] = addText(
+                page, {12, y, 294, 25}, statusText[i][row],
+                sizeof(statusText[i][row]));
+            if (!statusRefs[i][row]) return false;
         }
         if (!addText(page, {10, 211, 300, 20},
                      (char*)"Nur lokale Anzeige | CFG1")) return false;
     }
 
+    for (uint8_t i = 0; i < CompanionModules::kModuleCount; ++i) {
+        updateModule(i, millis());  // Populate each page before first draw.
+    }
     gslc_SetPageCur(&gui, 0);
-    updateSystem();
     return true;
 }
 }  // namespace
@@ -209,18 +195,20 @@ void setup() {
 void loop() {
     if (initialized) {
         gslc_Update(&gui);
+        const uint32_t now = millis();
 
-        // Defer page changes until after GUIslice has finished event processing.
+        // Do not switch pages from within a GUIslice touch callback.
         if (requestedPage != currentPage && requestedPage < kPages) {
             currentPage = requestedPage;
+            if (currentPage > 0) updateModule(currentPage - 1, now);
             gslc_SetPageCur(&gui, currentPage);
+            lastStatusMs = now;
             Serial.printf("UI NAV: %s\n", currentPage == 0 ? "Home" :
                  CompanionModules::kModules[currentPage - 1].title);
         }
-        const uint32_t now = millis();
-        if (currentPage == 5 && now - lastStatusMs >= 1000) {
+        if (currentPage > 0 && now - lastStatusMs >= 1000) {
             lastStatusMs = now;
-            updateSystem();
+            updateModule(currentPage - 1, now);
         }
     }
     const uint32_t now = millis();

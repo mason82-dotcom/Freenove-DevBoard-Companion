@@ -4,10 +4,12 @@ on:
   push:
     branches:
       - experiment/guislice-lovyangfx
+      - feature/guislice-six-modules
   workflow_dispatch:
   pull_request:
     branches:
       - feature/deps-lvgl9
+      - experiment/guislice-lovyangfx
 
 permissions:
   contents: read

@@ -84,32 +84,46 @@ class GUIsliceLovyanPrototypeTests(unittest.TestCase):
         self.assertIn("#define TFT_RGB_ORDER TFT_BGR", workflow)
         self.assertIn("#define TFT_INVERSION_OFF", workflow)
 
-    def test_system_live_values_trigger_redraw(self):
-        # GUIslice uses strncmp(element_buffer, incoming_text) before copying
-        # and setting GSLC_REDRAW_INC. Writing into its retained buffer
-        # first makes the two operands identical, freezing the display.
-        for existing, incoming in (
-            ("uptimeText", "nextUptime"),
-            ("heapText", "nextHeap"),
-            ("psramText", "nextPsram"),
-        ):
-            self.assertIn(f"char {incoming}[sizeof({existing})];",
-                          self.main)
-            self.assertIn(f"snprintf({incoming}, sizeof({incoming}),",
-                          self.main)
-            self.assertNotIn(f"snprintf({existing},", self.main)
-        self.assertIn("gslc_ElemSetTxtStr(&gui, statusUptime, nextUptime);",
+    def test_all_six_modules_live_values_trigger_redraw(self):
+        # The previous GUIslice Uptime regression was caused by writing into
+        # a retained text buffer before calling gslc_ElemSetTxtStr().
+        self.assertIn("ModuleDiagnostics::Snapshot next{};", self.main)
+        self.assertIn("ModuleDiagnostics::capture(", self.main)
+        self.assertIn("statusText[CompanionModules::kModuleCount]", self.main)
+        self.assertIn("gslc_ElemSetTxtStr(&gui, ref, next.text[row]);",
                       self.main)
-        self.assertIn("gslc_ElemSetTxtStr(&gui, statusHeap, nextHeap);",
-                      self.main)
-        self.assertIn("gslc_ElemSetTxtStr(&gui, statusPsram, nextPsram);",
-                      self.main)
-        # Clearing the prior glyphs makes updates readable on the ST7789.
+        self.assertNotIn("snprintf(statusText", self.main)
         self.assertIn("gslc_ElemSetFillEn(&gui, ref, true);", self.main)
         self.assertIn("gslc_ElemSetCol(&gui, ref, GSLC_COL_BLACK,",
                       self.main)
-        self.assertIn("currentPage == 5 && now - lastStatusMs >= 1000",
+        self.assertIn("statusRefs[i][row] = addText(", self.main)
+        self.assertIn("currentPage > 0 && now - lastStatusMs >= 1000",
                       self.main)
+        self.assertIn("if (currentPage > 0) updateModule(currentPage - 1, now);",
+                      self.main)
+
+    def test_separate_six_module_backends_are_read_only(self):
+        backend = PROTO / "src" / "modules"
+        sources = ["HermesModule.cpp", "WebradioModule.cpp",
+                   "Obd2Module.cpp", "DroneModule.cpp",
+                   "SystemModule.cpp", "CameraModule.cpp"]
+        self.assertEqual(len(sources), 6)
+        for filename in sources:
+            body = (backend / filename).read_text()
+            self.assertIn("void ", body)
+            for forbidden in ("WiFi.begin(", "WiFiClient", "ATZ",
+                              "ATSH", "Serial2.write(", "esp_camera_init(",
+                              "esp_camera_fb_get(", "i2s_driver_install(",
+                              "HTTPClient", "flightCommand(", "Wire.write("):
+                self.assertNotIn(forbidden, body)
+        header = (PROTO / "include" / "ModuleDiagnostics.h").read_text()
+        dispatch = (PROTO / "src" / "ModuleDiagnostics.cpp").read_text()
+        self.assertIn("constexpr uint8_t kRows = 4", header)
+        for name in ("hermes", "webradio", "obd2", "drone",
+                     "system", "camera"):
+            self.assertIn(f"Adapter::{name}(out, uptimeMs);", dispatch)
+        self.assertIn("ESP.getFreeHeap()", (backend / "SystemModule.cpp").read_text())
+        self.assertIn("ESP.getFreePsram()", (backend / "SystemModule.cpp").read_text())
 
     def test_touch_is_single_mapped_source(self):
         self.assertRegex(self.cfg, r"(?m)^\s*#define DRV_TOUCH_HANDLER\b")
