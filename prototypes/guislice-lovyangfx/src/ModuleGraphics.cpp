@@ -41,36 +41,59 @@ void bar(gslc_tsGui* g, int16_t x, int16_t y, int16_t width,
     }
 }
 void pulseHeart(gslc_tsGui* g, gslc_tsRect r) {
-    // Separate read-only snapshot; never reads Wire on the GUI thread.
+    // True 32x32 symmetric heart bitmap: two rounded lobes, central notch,
+    // and a single centered tip. Only drawn on initial paint/state change.
     const PulsOx::Snapshot s = PulsOx::read();
-    const bool active = s.running && s.sensorOk && s.finger;
-    // Compact symmetric heart, fully contained within the left 66 px of
-    // the 294x84 canvas. No overlapping circles or scanlines beyond bounds.
-    // This icon is deliberately static: do not repaint it at 8 FPS.
-    const int16_t cx = r.x + r.w / 2;
-    const int16_t heartTop = r.y + 15;
-    const gslc_tsColor heartColor = active ? red : muted;
-    // Fill with horizontal strokes bounded by the heart silhouette.
-    // Top: two rounded lobes separated by a shallow central notch.
-    static const uint8_t halfWidths[] = {
-        0, 4, 7, 9, 11, 12, 13, 14, 15, 16,
-        17, 18, 18, 17, 17, 16, 15, 14, 13, 12,
-        11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1
+    const gslc_tsColor color =
+        (s.running && s.sensorOk && s.finger) ? red : muted;
+    static const uint32_t heartRows[32] = {
+        0x00000000u,
+        0x03f03f00u,
+        0x0ffcffc0u,
+        0x1fffffe0u,
+        0x3ffffff0u,
+        0x7ffffff8u,
+        0x7ffffff8u,
+        0xfffffffcu,
+        0xfffffffcu,
+        0xfffffffcu,
+        0xfffffffcu,
+        0x7ffffff8u,
+        0x7ffffff8u,
+        0x3ffffff0u,
+        0x3ffffff0u,
+        0x1fffffe0u,
+        0x1fffffe0u,
+        0x0fffffc0u,
+        0x0fffffc0u,
+        0x07ffff80u,
+        0x07ffff80u,
+        0x03ffff00u,
+        0x03ffff00u,
+        0x01fffe00u,
+        0x00fffc00u,
+        0x007ff800u,
+        0x003ff000u,
+        0x001fe000u,
+        0x000fc000u,
+        0x00078000u,
+        0x00030000u,
+        0x00000000u
     };
-    // The two top lobes have their own caps; lower scanlines converge
-    // smoothly to a single centered point.
-    for (int16_t y = 0; y < 5; ++y) {
-        const int16_t lobeHalf = (y == 0) ? 3 : (y == 1 ? 5 : (y == 2 ? 7 : 8));
-        line(g, cx - 10 - lobeHalf, heartTop + y,
-                cx - 10 + lobeHalf, heartTop + y, heartColor);
-        line(g, cx + 10 - lobeHalf, heartTop + y,
-                cx + 10 + lobeHalf, heartTop + y, heartColor);
+    const int16_t x = r.x + (r.w - 32) / 2;
+    const int16_t y = r.y + (r.h - 32) / 2;
+    for (uint8_t row = 0; row < 32; ++row) {
+        const uint32_t bits = heartRows[row];
+        int8_t runStart = -1;
+        for (uint8_t col = 0; col <= 32; ++col) {
+            const bool filled = col < 32 && (bits & (0x80000000u >> col));
+            if (filled && runStart < 0) runStart = col;
+            if (!filled && runStart >= 0) {
+                line(g, x + runStart, y + row, x + col - 1, y + row, color);
+                runStart = -1;
+            }
+        }
     }
-    for (uint8_t y = 5; y < sizeof(halfWidths); ++y) {
-        const int16_t hw = halfWidths[y];
-        line(g, cx - hw, heartTop + y, cx + hw, heartTop + y, heartColor);
-    }
-
 }
 void pulseWave(gslc_tsGui* g, gslc_tsRect r) {
     const PulsOx::Snapshot s = PulsOx::read();
