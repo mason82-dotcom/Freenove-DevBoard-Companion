@@ -28,6 +28,8 @@ struct Snapshot {
     float piLoad = 0;
 };
 
+// Whether locally provisioned HTTPS polling is compiled in.
+bool enabled();
 // Initializes an opt-in background TLS-only, GET-only poller.
 // The default build never starts Wi-Fi or network tasks.
 bool begin();
