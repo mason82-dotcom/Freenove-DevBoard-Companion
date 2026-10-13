@@ -1,5 +1,7 @@
 # Freenove-DevBoard-Companion
 
+> **Hinweis zu diesem Checkout:** `platformio.ini` baut derzeit die LVGL-8.3.11-Firmware mit den sechs Modulen Hermes, Webradio, OBD2, Drohne, System und PulsOx. Die folgende LVGL-9-/Kamera-Beschreibung ist ein älterer Entwicklungsstand. Die aktuelle Testmigration und ihre Grenzen stehen in [docs/LVGL8-TEST-REGRESSION.md](docs/LVGL8-TEST-REGRESSION.md).
+
 LVGL-9.6-basierte, **lokale und rein lesende** Companion-Oberfläche für das Freenove FNK0086 (ESP32-S3, 8 MB Flash und 8 MB PSRAM). Entwicklungsstand: `feature/deps-lvgl9`, siehe [PR #3](https://github.com/mason82-dotcom/Freenove-DevBoard-Companion/pull/3). `main` bleibt bis zur getrennten Integration unverändert.
 
 **Unveränderliches Hardwareprofil:** `FNK0086A_2P8_CFG1_240x320_ST7789`; ausschließlich das auf realer Hardware bestätigte CFG1. Kein CFG2, keine automatische Umschaltung und kein Ersatzprofil.
