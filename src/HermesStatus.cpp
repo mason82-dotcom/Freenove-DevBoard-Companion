@@ -91,10 +91,21 @@ void query() {
             Stream& stream = http->getStream();
             const size_t received = stream.readBytes(body.get(), static_cast<size_t>(length));
             body[received] = 0;
+            if (received != static_cast<size_t>(length)) {
+                Serial.printf("Hermes RX: expected=%d received=%u (incomplete)\n",
+                              length, static_cast<unsigned>(received));
+            }
             JsonDocument doc;
             DeserializationError error = received == static_cast<size_t>(length)
                 ? deserializeJson(doc, body.get(), received, DeserializationOption::NestingLimit(6))
                 : DeserializationError::IncompleteInput;
+            if (error) {
+                Serial.printf("Hermes JSON: parse_error=%s expected=%d received=%u\n",
+                              error.c_str(), length, static_cast<unsigned>(received));
+            } else if (!getBool(doc["ok"]) || doc["schema_version"].as<int>() != 1) {
+                Serial.printf("Hermes JSON: schema_invalid ok=%d version=%d\n",
+                              static_cast<int>(getBool(doc["ok"])), doc["schema_version"].as<int>());
+            }
             if (!error && getBool(doc["ok"]) && doc["schema_version"].as<int>() == 1) {
                 JsonVariantConst sys = doc["system"];
                 JsonVariantConst hermes = doc["hermes"];
