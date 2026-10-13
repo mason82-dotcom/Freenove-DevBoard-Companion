@@ -16,7 +16,13 @@ struct Snapshot {
     uint32_t lastBeatMs = 0;
     uint32_t beatCounter = 0;
 };
+// Starts one persistent worker, initially parked (sensor is OFF).
 bool begin();
+// Called ONLY from the GUIslice task when the PulsOx page is entered/left.
+// Non-blocking: the worker exclusively handles MAX30102 I2C and shutdown.
+bool requestActive(bool active);
+// Snapshot stays empty while the page is inactive, even if the worker
+// is still completing an in-flight I2C transaction.
 Snapshot read();
 // Copies the most recent chronological IR samples; read-only, no I2C.
 uint16_t readWave(uint16_t* destination, uint16_t capacity);
