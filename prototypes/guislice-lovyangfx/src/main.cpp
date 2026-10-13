@@ -19,6 +19,7 @@
 
 namespace {
 constexpr uint8_t kPages = 7;    // 0=Home; 1..6 = the existing Companion modules.
+constexpr uint8_t kPulsOxPage = 6;  // Only the last module uses MAX30102.
 constexpr uint8_t kItemsPerPage = 12;
 constexpr uint8_t kStatusRows = ModuleDiagnostics::kRows;
 constexpr int16_t kFontBody = 0;
@@ -213,7 +214,19 @@ void loop() {
 
         // Do not switch pages from within a GUIslice touch callback.
         if (requestedPage != currentPage && requestedPage < kPages) {
-            currentPage = requestedPage;
+            // A Back press requests MAX30102 shutdown before switching page.
+            // Never power down a sensor from a GUIslice touch callback:
+            // the worker handles its I2C transaction under SharedI2C.
+            const uint8_t nextPage = requestedPage;
+            if (currentPage == kPulsOxPage && nextPage != kPulsOxPage) {
+                PulsOx::requestActive(false);
+                Serial.println("UI PulsOx: STOP REQUESTED");
+            } else if (currentPage != kPulsOxPage && nextPage == kPulsOxPage) {
+                Serial.printf("UI PulsOx: %s\n",
+                              PulsOx::requestActive(true) ? "START REQUESTED"
+                                                          : "WORKER UNAVAILABLE");
+            }
+            currentPage = nextPage;
             if (currentPage > 0) updateModule(currentPage - 1, now);
             gslc_SetPageCur(&gui, currentPage);
             lastStatusMs = now;

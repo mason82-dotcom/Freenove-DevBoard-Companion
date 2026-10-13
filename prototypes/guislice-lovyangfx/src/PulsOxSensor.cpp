@@ -6,6 +6,7 @@
 #include <heartRate.h>
 #include <spo2_algorithm.h>
 #include <string.h>
+#include <atomic>
 
 // Adapted from the user-provided PulsOxMonitor source (SparkFun MAX3010x
 // v1.1.2). No parallel TFT_eSPI UI task and NO LED output on GPIO48.
@@ -34,6 +35,9 @@ uint8_t ratePos=0, rateCount=0, fingerCandidate=0;
 uint16_t windowCount=0;
 uint32_t lastBeat=0;
 TaskHandle_t sensorWorker=nullptr;
+std::atomic<bool> desiredActive{false};
+// A stop must not disappear when Back and re-enter occur very quickly.
+std::atomic<bool> stopPending{false};
 
 void publish(const Snapshot& s) {
     portENTER_CRITICAL(&dataMux);
@@ -131,14 +135,58 @@ void onSample(uint32_t red,uint32_t ir,Snapshot& s) {
 }
 void task(void*) {
     Snapshot s{};
-    s.running=true;
-    publish(s);
-    uint32_t lastRetry=millis()-2000,lastData=millis();
-    while(true) {
+    bool configured = false;
+    bool sessionActive = false;
+    uint32_t lastRetry = 0, lastData = 0;
+    for (;;) {
+        // A stop request is latched, so even a rapid Back -> PulsOx cycle
+        // shuts down the previous session before starting a new one.
+        const bool mustStop = stopPending.exchange(false);
+        if (!desiredActive.load() || mustStop) {
+            if (configured) {
+                // Power down the MAX30102 LED/ADC ONLY from this worker.
+                // FT6336U touch shares Wire, so all I2C stays serialized.
+                SharedI2C::Guard lock(150);
+                if (!lock) {
+                    stopPending.store(true);
+                    vTaskDelay(pdMS_TO_TICKS(10));
+                    continue;
+                }
+                sensor.shutDown();
+                configured = false;
+                Serial.println("PulsOx MAX30102: SLEEP");
+            }
+            if (sessionActive || mustStop) {
+                Serial.println("PulsOx MAX30102: STOPPED");
+            }
+            sessionActive = false;
+            s = Snapshot{};
+            reset(s);
+            publish(s);
+            if (!desiredActive.load()) {
+                // No sampling, I2C polling or LED activity while inactive.
+                ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+            }
+            continue;
+        }
+
+        if (!sessionActive) {
+            // Never reuse pulse, SpO2, or the trace from an earlier visit.
+            sessionActive = true;
+            s = Snapshot{};
+            reset(s);
+            s.running = true;
+            publish(s);
+            lastRetry = millis() - 2000u;
+            lastData = millis();
+            Serial.println("PulsOx MAX30102: START");
+        }
+
         if(!s.sensorOk) {
             if(static_cast<uint32_t>(millis()-lastRetry)>=2000u) {
                 lastRetry=millis();
                 if(initialize(s)){
+                    configured = true;
                     Serial.println("PulsOx MAX30102: FOUND");
                     lastData=millis();
                 } else Serial.println("PulsOx MAX30102: MISSING");
@@ -176,24 +224,38 @@ void task(void*) {
 bool begin() {
     if (sensorWorker) return true;
     if (!SharedI2C::ready()) return false;
-    const bool ok=xTaskCreatePinnedToCore(
-        task,"pulsox",6144,nullptr,2,&sensorWorker,0)==pdPASS;
-    return ok;
+    // Create once, but no sensor I2C until the page is entered.
+    return xTaskCreatePinnedToCore(
+        task, "pulsox", 6144, nullptr, 2, &sensorWorker, 0) == pdPASS;
+}
+bool requestActive(bool active) {
+    if (!sensorWorker) return false;
+    // Only the worker accesses MAX30102; this UI call never blocks on I2C.
+    if (!active) stopPending.store(true);
+    desiredActive.store(active);
+    portENTER_CRITICAL(&dataMux);
+    latest = Snapshot{};
+    memset(waveform, 0, sizeof(waveform));
+    waveHead = waveCount = 0;
+    portEXIT_CRITICAL(&dataMux);
+    xTaskNotifyGive(sensorWorker);
+    return true;
 }
 Snapshot read() {
     Snapshot out;
     portENTER_CRITICAL(&dataMux);
     out=latest;
     portEXIT_CRITICAL(&dataMux);
+    if (!desiredActive.load()) return Snapshot{};
     return out;
 }
 uint16_t readWave(uint16_t* out,uint16_t capacity) {
-    if (!out || !capacity) return 0;
+    if (!out || !capacity || !desiredActive.load()) return 0;
     portENTER_CRITICAL(&dataMux);
     const uint16_t n=capacity<waveCount?capacity:waveCount;
     const uint16_t start=(waveHead+kWave-n)%kWave;
     for(uint16_t i=0;i<n;++i)out[i]=waveform[(start+i)%kWave];
     portEXIT_CRITICAL(&dataMux);
-    return n;
+    return desiredActive.load() ? n : 0;
 }
 } // namespace PulsOx
