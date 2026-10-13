@@ -5,6 +5,7 @@
 #include "BoardTouch.h"
 #include "CompanionModules.h"
 #include "CompanionUi.h"
+#include "PulsOxSensor.h"
 #include "TouchTransform.h"
 
 static_assert(LVGL_VERSION_MAJOR == 8 && LVGL_VERSION_MINOR == 3,
@@ -32,6 +33,8 @@ alignas(4) static lv_color_t drawPixels[kWidth * kLinesPerFlush];
 lv_obj_t* statusLabel = nullptr;
 uint32_t lastTick = 0;
 uint32_t lastSystemRefresh = 0;
+uint32_t lastPulsOxRefresh = 0;
+lv_obj_t* pulsOxLabel = nullptr;
 bool touchEnabled = false;
 bool ready = false;
 uint8_t diagStage = 0;  // Assigned in begin: normal 2, diagnostic 0.
@@ -110,6 +113,7 @@ void makeScreenBlank() {
     lv_obj_set_style_border_width(root, 0, 0);
     lv_obj_set_style_bg_color(root, color(0x0B1220), 0);
     statusLabel = nullptr;
+    pulsOxLabel = nullptr;
 }
 
 void onTileClicked(lv_event_t* event) {
@@ -195,6 +199,9 @@ void showModule(uint8_t page) {
     if (module.id == CompanionModules::Id::System) {
         statusLabel = newLabel(panel, "", 9, 42, 0x81DDBC);
         updateSystemDetails();
+    } else if (module.id == CompanionModules::Id::PulsOx) {
+        pulsOxLabel = newLabel(panel, "MAX30102 wird gestartet ...", 9, 39, 0x81DDBC);
+        newLabel(panel, "Messwerte nur zur Orientierung", 9, 105, 0x91A8C1);
     } else {
         newLabel(panel, "Noch keine Verbindung / keine Befehle", 9, 51, 0x91A8C1);
     }
@@ -206,6 +213,8 @@ namespace CompanionUi {
 
 bool begin(bool touchPresent) {
     touchEnabled = touchPresent;
+    const bool pulsOxReady = PulsOx::begin();
+    Serial.printf("PulsOx worker: %s\n", pulsOxReady ? "READY" : "UNAVAILABLE");
     screen.init();
     screen.setRotation(1);  // fixed Freenove CFG1 only
     if (screen.width() != kWidth || screen.height() != kHeight) {
@@ -288,6 +297,7 @@ void poll() {
     lv_timer_handler();
 
     if (requestedPage != shownPage) {
+        if (shownPage == 6) PulsOx::requestActive(false);
         shownPage = requestedPage;
         if (shownPage == 0) {
             Serial.println("UI NAV: Home");
@@ -296,9 +306,20 @@ void poll() {
             Serial.printf("UI NAV: %s\n",
                           CompanionModules::kModules[shownPage - 1].title);
             showModule(shownPage);
+            if (shownPage == 6) PulsOx::requestActive(true);
         }
     }
 
+    if (shownPage == 6 && pulsOxLabel && now - lastPulsOxRefresh >= 500) {
+        lastPulsOxRefresh = now;
+        const auto s = PulsOx::read();
+        if (!s.running) lv_label_set_text(pulsOxLabel, "Sensor-Task nicht aktiv");
+        else if (!s.sensorOk) lv_label_set_text(pulsOxLabel, "MAX30102 wird gesucht ...");
+        else if (!s.finger) lv_label_set_text(pulsOxLabel, "Finger auf Sensor legen");
+        else lv_label_set_text_fmt(pulsOxLabel, "Puls: %s\nSpO2: %s",
+            s.bpmValid ? String(s.bpm).c_str() : "--",
+            s.spo2Valid ? (String(s.spo2) + " %").c_str() : "--");
+    }
     if (shownPage == 5 && now - lastSystemRefresh >= 1000) {
         lastSystemRefresh = now;
         updateSystemDetails();
