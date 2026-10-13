@@ -1,6 +1,7 @@
 #include "Obd2Status.h"
 #include "Obd2Policy.h"
 #include "Obd2Response.h"
+#include "WifiLink.h"
 #include <Arduino.h>
 #include <WiFi.h>
 #include <atomic>
@@ -16,8 +17,9 @@
 #define OBD2_LOCAL_CONFIG_PRESENT 0
 #endif
 
-// Read-only ELM327 client over Wi-Fi/TCP (lab profile: ELM327 simulator in the
-// home WLAN; the Wi-Fi association itself is owned by the Hermes worker).
+// Read-only ELM327 client over Wi-Fi/TCP. Lab profile: ELM327 simulator in the
+// home WLAN. Vehicle profile (OBD2_PROFILE_VEHICLE 1): the dongle's own access
+// point, selected via WifiLink only while the OBD2 page is open.
 // Only Obd2Policy commands can be transmitted; see Obd2Policy.h.
 namespace {
 using Obd2Policy::Command;
@@ -36,6 +38,14 @@ void publish(const Snapshot& s) {
 }
 
 #if OBD2_LOCAL_CONFIG_PRESENT
+#if defined(OBD2_PROFILE_VEHICLE) && OBD2_PROFILE_VEHICLE
+constexpr bool kVehicle = true;
+#else
+constexpr bool kVehicle = false;
+#endif
+constexpr WifiLink::Profile kWifiProfile =
+    kVehicle ? WifiLink::Profile::Vehicle : WifiLink::Profile::Home;
+constexpr uint32_t kNoEcuRetryMs = 5000;
 constexpr uint32_t kConnectTimeoutMs = 3000;
 constexpr uint32_t kResetTimeoutMs = 3000;
 constexpr uint32_t kSetupTimeoutMs = 1500;
@@ -99,7 +109,7 @@ bool countFailure(Result r, Snapshot& s) {
 void setLink(Snapshot& s, Link link) {
     if (s.link == link) return;
     static const char* const names[] = {"not-configured", "idle", "wait-wifi", "connecting",
-                                        "init", "searching", "live", "error"};
+                                        "init", "searching", "live", "error", "no-ecu"};
     s.link = link;
     Serial.printf("OBD2: %s (tx=%lu timeouts=%lu errors=%lu)\n",
                   names[static_cast<uint8_t>(link)], static_cast<unsigned long>(s.tx),
@@ -128,7 +138,15 @@ bool discoverSupport(Snapshot& s) {
     uint32_t mask00 = 0, mask20 = 0, mask40 = 0;
     if (!countFailure(exchange(Command::SupportedPids00, kSearchTimeoutMs, s), s)) return false;
     if (!Obd2Response::supportedBitmap(reply, 0x00, mask00)) {
-        ++s.errors;  // e.g. UNABLE TO CONNECT: ignition off or no ECU
+        // Adapter answered, but no ECU did: ignition off, wrong protocol.
+        if (Obd2Response::contains(reply, "UNABLE TO CONNECT") ||
+            Obd2Response::contains(reply, "BUS INIT") ||
+            Obd2Response::contains(reply, "NO DATA") ||
+            Obd2Response::contains(reply, "CAN ERROR")) {
+            setLink(s, Link::NoEcu);
+        } else {
+            ++s.errors;
+        }
         return false;
     }
     if (mask00 & 1u) {
@@ -162,6 +180,12 @@ bool pollOnce(Snapshot& s, uint8_t& slowIndex, uint8_t& failures) {
         const uint8_t pid = Obd2Policy::pidOf(command);
         const Result r = exchange(command, kReadTimeoutMs, s);
         if (r == Result::Closed || r == Result::Aborted) return false;
+        if (r == Result::Timeout) {
+            // No '>' prompt: a late reply could be paired with the next
+            // command. Drop the TCP session instead of guessing.
+            countFailure(r, s);
+            return false;
+        }
         uint8_t data[2] = {};
         float value = 0;
         if (r == Result::Ok &&
@@ -185,6 +209,8 @@ void endSession(Snapshot& s, Link link) {
     s.supportKnown = false;
     setLink(s, link);
     publish(s);
+    // Leaving the page hands the station back to the home WLAN (Hermes).
+    if (link == Link::Idle && kVehicle) WifiLink::request(WifiLink::Profile::Home);
 }
 
 void task(void*) {
@@ -203,8 +229,10 @@ void task(void*) {
         if (s.link == Link::Idle) {
             s = Snapshot{};  // fresh counters and values for every visit
             s.link = Link::Idle;
+            s.vehicleProfile = kVehicle;
         }
-        if (WiFi.status() != WL_CONNECTED) {
+        WifiLink::request(kWifiProfile);
+        if (!WifiLink::connectedTo(kWifiProfile)) {
             setLink(s, Link::WaitingForWifi);
             ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(500));
             continue;
@@ -218,8 +246,9 @@ void task(void*) {
         }
         client.setNoDelay(true);
         if (!initializeAdapter(s) || !discoverSupport(s)) {
-            endSession(s, desiredActive.load() ? Link::Error : Link::Idle);
-            ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(kRetryDelayMs));
+            const bool noEcu = s.link == Link::NoEcu;
+            endSession(s, !desiredActive.load() ? Link::Idle : noEcu ? Link::NoEcu : Link::Error);
+            ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(noEcu ? kNoEcuRetryMs : kRetryDelayMs));
             continue;
         }
         setLink(s, Link::Live);
@@ -249,10 +278,19 @@ void begin() {
     if (worker != nullptr) return;
     Snapshot s;
     s.link = Link::Idle;
+    s.vehicleProfile = kVehicle;
     publish(s);
     // Created once and parked: no adapter traffic until the page is opened.
     if (xTaskCreatePinnedToCore(task, "obd2", 6144, nullptr, 1, &worker, 0) != pdPASS)
         worker = nullptr;
+#endif
+}
+
+bool vehicleProfile() {
+#if OBD2_LOCAL_CONFIG_PRESENT
+    return kVehicle;
+#else
+    return false;
 #endif
 }
 

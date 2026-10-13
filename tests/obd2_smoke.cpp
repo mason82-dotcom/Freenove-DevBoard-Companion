@@ -108,6 +108,23 @@ int main() {
     Obd2Status::format(s, 1000, text, sizeof(text));
     assert(std::strstr(text, "ELM327: Fehler, neuer Versuch") == text);
     assert(std::strstr(text, "Drehzahl: --") != nullptr);
+    // Adapter id only next to a live link; no-ECU and vehicle Wi-Fi texts.
+    s.link = Obd2Status::Link::NoEcu;
+    Obd2Status::format(s, 1000, text, sizeof(text));
+    assert(std::strncmp(text, "ELM327: kein Steuergeraet (Zuendung?)\n", 38) == 0);
+    s.link = Obd2Status::Link::WaitingForWifi;
+    s.vehicleProfile = true;
+    Obd2Status::format(s, 1000, text, sizeof(text));
+    assert(std::strncmp(text, "ELM327: sucht Adapter-WLAN ...\n", 31) == 0);
+    s.vehicleProfile = false;
+    Obd2Status::format(s, 1000, text, sizeof(text));
+    assert(std::strncmp(text, "ELM327: wartet auf WLAN\n", 24) == 0);
+    for (const char* line = text; *line;) {  // every line fits the 278 px panel
+        const char* end = std::strchr(line, '\n');
+        const size_t len = end ? static_cast<size_t>(end - line) : std::strlen(line);
+        assert(len <= 40);
+        line = end ? end + 1 : line + len;
+    }
     char tiny[6];
     Obd2Status::format(s, 0, tiny, sizeof(tiny));
     assert(std::strlen(tiny) == 5);

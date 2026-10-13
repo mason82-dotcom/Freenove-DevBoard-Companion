@@ -9,6 +9,7 @@
 #include "Obd2Status.h"
 #include "PulsOxSensor.h"
 #include "TouchTransform.h"
+#include "WifiLink.h"
 
 static_assert(LVGL_VERSION_MAJOR == 8 && LVGL_VERSION_MINOR == 3,
               "This shell requires LVGL 8.3.x");
@@ -273,7 +274,9 @@ void showModule(uint8_t page) {
     } else if (module.id == CompanionModules::Id::Obd2) {
         obd2Label = newLabel(panel, "ELM327 wird verbunden ...", 9, 0, 0x81DDBC);
         updateObd2Details();
-        newLabel(panel, "Nur Lesen: Mode 01 | keine Fehlercodes", 9, 104, 0x91A8C1);
+        newLabel(panel, Obd2Status::vehicleProfile()
+                            ? "Nur Lesen | Bedienung nur im Stillstand"
+                            : "Nur Lesen: Mode 01 | Laborprofil", 9, 104, 0x91A8C1);
     } else if (module.id == CompanionModules::Id::System) {
         statusLabel = newLabel(panel, "", 9, 42, 0x81DDBC);
         updateSystemDetails();
@@ -345,6 +348,7 @@ bool begin(bool touchPresent) {
                   static_cast<void*>(display),
                   static_cast<void*>(pointer),
                   static_cast<unsigned>(sizeof(drawPixels)));
+    WifiLink::begin();
     HermesStatus::begin();
     Obd2Status::begin();
     lastTick = millis();

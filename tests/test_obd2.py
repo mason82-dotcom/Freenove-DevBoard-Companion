@@ -57,6 +57,34 @@ class Obd2Tests(unittest.TestCase):
         self.assertNotIn("WiFi.begin(", self.client)
         self.assertNotIn("Obd2Response", self.gui)
 
+    def test_wifi_profiles_have_a_single_owner(self):
+        link = code_only((ROOT / "src" / "WifiLink.cpp").read_text(encoding="utf-8"))
+        hermes = code_only((ROOT / "src" / "HermesStatus.cpp").read_text(encoding="utf-8"))
+        sources = {p.name: code_only(p.read_text(encoding="utf-8"))
+                   for p in (ROOT / "src").glob("*.cpp")}
+        for name, text in sources.items():
+            if name != "WifiLink.cpp":
+                with self.subTest(file=name):
+                    self.assertNotIn("WiFi.begin(", text)
+                    self.assertNotIn("WiFi.disconnect(", text)
+        self.assertIn("WiFi.persistent(false)", link)
+        self.assertIn("WiFi.begin(HERMES_WIFI_SSID, HERMES_WIFI_PASSWORD)", link)
+        self.assertIn("WiFi.begin(OBD2_WIFI_SSID, OBD2_WIFI_PASSWORD)", link)
+        self.assertLess(link.index("current.store(profile)"), link.index("WiFi.disconnect(false, false)"))
+        self.assertIn("s.connected = WifiLink::connectedTo(WifiLink::Profile::Home);", hermes)
+        self.assertIn("WifiLink::request(kWifiProfile);", self.client)
+        self.assertIn("if (link == Link::Idle && kVehicle) WifiLink::request(WifiLink::Profile::Home);",
+                      self.client)
+
+    def test_timeout_drops_session_and_no_ecu_is_reported(self):
+        poll = self.client.split("bool pollOnce(", 1)[1].split("void endSession(", 1)[0]
+        self.assertRegex(poll, r"if \(r == Result::Timeout\) \{\s*countFailure\(r, s\);\s*return false;")
+        for marker in ('"UNABLE TO CONNECT"', '"BUS INIT"', '"CAN ERROR"', "setLink(s, Link::NoEcu)"):
+            self.assertIn(marker, self.client)
+        example = (ROOT / "include" / "Obd2LocalConfig.example.h").read_text(encoding="utf-8")
+        self.assertIn("#define OBD2_PROFILE_VEHICLE 0", example)
+        self.assertIn('// #define OBD2_ELM_HOST "192.168.0.10"', example)
+
     def test_local_config_is_ignored(self):
         ignore = (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
         self.assertIn("include/Obd2LocalConfig.h", ignore)

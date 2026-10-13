@@ -3,16 +3,17 @@
 
 namespace Obd2Status {
 namespace {
-const char* linkText(Link link) {
+const char* linkText(Link link, bool vehicle) {
     switch (link) {
         case Link::NotConfigured: return "nicht konfiguriert";
         case Link::Idle: return "inaktiv";
-        case Link::WaitingForWifi: return "wartet auf WLAN";
+        case Link::WaitingForWifi: return vehicle ? "sucht Adapter-WLAN ..." : "wartet auf WLAN";
         case Link::Connecting: return "verbindet ...";
         case Link::Initializing: return "Adapter-Init ...";
         case Link::Searching: return "sucht Protokoll ...";
         case Link::Live: return "verbunden";
         case Link::Error: return "Fehler, neuer Versuch";
+        case Link::NoEcu: return "kein Steuergeraet (Zuendung?)";
     }
     return "?";
 }
@@ -50,7 +51,9 @@ void format(const Snapshot& s, uint32_t now, char* out, size_t capacity) {
              "Last: %s | Drossel: %s\n"
              "Spannung: %s\n"
              "TX: %lu | Timeouts: %lu | Fehler: %lu",
-             linkText(s.link), s.adapter[0] ? " | " : "", s.adapter,
+             linkText(s.link, s.vehicleProfile),
+             s.link == Link::Live && s.adapter[0] ? " | " : "",
+             s.link == Link::Live ? s.adapter : "",
              rpm, speed, coolant, intake, load, throttle, volt,
              static_cast<unsigned long>(s.tx), static_cast<unsigned long>(s.timeouts),
              static_cast<unsigned long>(s.errors));
