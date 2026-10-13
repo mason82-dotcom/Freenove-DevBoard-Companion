@@ -57,7 +57,8 @@ class FnkTouchHandler : public TouchHandler {
 public:
     void begin() override {
         const bool ok = BoardTouch::begin();
-        Serial.printf("FT6336U probe: %s\n", ok ? "FOUND" : "MISSING");
+        Serial.printf("FT6336U probe: %s
+", ok ? "FOUND" : "MISSING");
     }
 
     THPoint getPoint() override {
@@ -133,7 +134,8 @@ bool buildGui() {
     gslc_SetBkgndColor(&gui, GSLC_COL_BLACK);
 
     if (gui.nDispW != 320 || gui.nDispH != 240) {
-        Serial.printf("ERROR: GUI display is %dx%d, required 320x240\n",
+        Serial.printf("ERROR: GUI display is %dx%d, required 320x240
+",
                       gui.nDispW, gui.nDispH);
         return false;
     }
@@ -163,7 +165,8 @@ bool buildGui() {
                      const_cast<char*>(CompanionModules::kModules[i].detail))) return false;
         // Each module owns a native GUIslice graphics canvas.
         canvasRefs[i] = gslc_ElemCreateBox(&gui, GSLC_ID_AUTO,
-                                             page, i == 5 ? gslc_tsRect{12, 65, 74, 84}\n                                                          : gslc_tsRect{12, 65, 294, 84});
+                                             page, i == 5 ? gslc_tsRect{12, 65, 74, 84}
+                                                          : gslc_tsRect{12, 65, 294, 84});
         if (!canvasRefs[i]) return false;
         ModuleGraphics::bind(i, canvasRefs[i]);
         gslc_ElemSetDrawFunc(&gui, canvasRefs[i], &ModuleGraphics::draw);
@@ -200,7 +203,8 @@ void setup() {
     Serial.begin(115200);
     delay(250);
     Serial.println("FNK0086 GUIslice 0.17.2 + LovyanGFX 1.2.32 EXPERIMENT");
-    Serial.printf("PSRAM at boot: %u bytes free\n",
+    Serial.printf("PSRAM at boot: %u bytes free
+",
                   static_cast<unsigned>(ESP.getFreePsram()));
     gslc_InitDebug(printDebug);
     gslc_InitTouchHandler(&fnkTouch);
@@ -208,10 +212,12 @@ void setup() {
     // SharedI2C is established by FT6336U begin() during GUI init.
     // Sensor failure never prevents the five other pages from working.
     if (initialized) {
-        Serial.printf("PulsOx worker: %s\n",
+        Serial.printf("PulsOx worker: %s
+",
                       PulsOx::begin() ? "STARTED" : "OFFLINE");
     }
-    Serial.printf("GUI BOOT: %s, display=320x240, modules=%u\n",
+    Serial.printf("GUI BOOT: %s, display=320x240, modules=%u
+",
                   initialized ? "OK" : "FAIL",
                   static_cast<unsigned>(CompanionModules::kModuleCount));
 }
@@ -231,16 +237,19 @@ void loop() {
                 PulsOx::requestActive(false);
                 Serial.println("UI PulsOx: STOP REQUESTED");
             } else if (currentPage != kPulsOxPage && nextPage == kPulsOxPage) {
-                Serial.printf("UI PulsOx: %s\n",
+                Serial.printf("UI PulsOx: %s
+",
                               PulsOx::requestActive(true) ? "START REQUESTED"
                                                           : "WORKER UNAVAILABLE");
             }
-            currentPage = nextPage;\n            if (currentPage == kPulsOxPage) ModuleGraphics::resetPulseHeart();
+            currentPage = nextPage;
+            if (currentPage == kPulsOxPage) ModuleGraphics::resetPulseHeart();
             if (currentPage > 0) updateModule(currentPage - 1, now);
             gslc_SetPageCur(&gui, currentPage);
             lastStatusMs = now;
             if (currentPage > 0) ModuleGraphics::refresh(&gui, currentPage - 1);
-            Serial.printf("UI NAV: %s\n", currentPage == 0 ? "Home" :
+            Serial.printf("UI NAV: %s
+", currentPage == 0 ? "Home" :
                  CompanionModules::kModules[currentPage - 1].title);
         }
         if (currentPage > 0 && now - lastStatusMs >= 1000) {
@@ -249,7 +258,8 @@ void loop() {
             if (currentPage == 5) ModuleGraphics::sampleSystem(ESP.getFreeHeap());
             ModuleGraphics::refresh(&gui, currentPage - 1);
         }
-        // Pulse waveform: 4 FPS reduces ST7789 full-canvas redraw flicker.\n        // No direct Wire access on the UI task.
+        // Pulse waveform: 4 FPS reduces ST7789 full-canvas redraw flicker.
+        // No direct Wire access on the UI task.
         static uint32_t lastPulseCanvasMs = 0;
         if (currentPage == 6 && now - lastPulseCanvasMs >= 250) {
             lastPulseCanvasMs = now;
@@ -259,7 +269,8 @@ void loop() {
     const uint32_t now = millis();
     if (now - lastHeartbeatMs >= 2000) {
         lastHeartbeatMs = now;
-        Serial.printf("GUI heartbeat: uptime=%lu heap=%u psram=%u\n",
+        Serial.printf("GUI heartbeat: uptime=%lu heap=%u psram=%u
+",
                       static_cast<unsigned long>(now),
                       static_cast<unsigned>(ESP.getFreeHeap()),
                       static_cast<unsigned>(ESP.getFreePsram()));
