@@ -8,6 +8,7 @@ command outside the allowlist is answered with "?" and reported as
 """
 import argparse
 import math
+import signal
 import socketserver
 import sys
 import threading
@@ -47,7 +48,10 @@ class Handler(socketserver.StreamRequestHandler):
         searched = False
         buf = b""
         while True:
-            chunk = self.request.recv(256)
+            try:
+                chunk = self.request.recv(256)
+            except OSError:  # board closed with RST (page left)
+                break
             if not chunk:
                 break
             buf += chunk
@@ -72,7 +76,10 @@ class Handler(socketserver.StreamRequestHandler):
                         reply = "SEARCHING...\r" + reply
                         searched = True
                 time.sleep(self.server.reply_delay)
-                self.wfile.write((reply + "\r\r>").encode("ascii"))
+                try:
+                    self.wfile.write((reply + "\r\r>").encode("ascii"))
+                except OSError:
+                    return
         print("disconnect", peer, "counts:", dict(sorted(self.server.counts.items())),
               "violations:", self.server.violations, flush=True)
 
@@ -102,16 +109,14 @@ def main():
     args = parser.parse_args()
     server = make_server(args.bind, args.port, args.search_delay, args.reply_delay)
     print("ELM327 LAB SIM on %s:%d" % (args.bind, args.port), flush=True)
+    stop = threading.Event()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(sig, lambda *_: stop.set())
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
-    try:
-        if args.duration:
-            time.sleep(args.duration)
-        else:
-            thread.join()
-    except KeyboardInterrupt:
-        pass
+    stop.wait(args.duration or None)
     server.shutdown()
+    server.server_close()
     print("SUMMARY counts:", dict(sorted(server.counts.items())),
           "violations:", server.violations, flush=True)
     return 1 if server.violations else 0
