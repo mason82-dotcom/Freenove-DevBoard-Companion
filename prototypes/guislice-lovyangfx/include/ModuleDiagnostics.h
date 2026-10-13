@@ -1,6 +1,6 @@
 #pragma once
 #include <stdint.h>
-#include "CompanionModules.h"
+#include "CompanionGuiModules.h"
 
 // Read-only presentation contract for the six Companion pages.
 // No backend is allowed to change vehicle, drone or radio state merely
