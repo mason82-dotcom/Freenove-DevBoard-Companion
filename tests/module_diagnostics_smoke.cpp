@@ -1,5 +1,9 @@
 #include "ModuleDiagnostics.h"
+// Arduino-ESP32 declares DISABLED as a macro; this must not corrupt
+// HermesStatus enum declarations in a host-only compilation.
+#define DISABLED 0x00
 #include "HermesStatus.h"
+#undef DISABLED
 #include <Arduino.h>
 #include <cassert>
 #include <cstring>
