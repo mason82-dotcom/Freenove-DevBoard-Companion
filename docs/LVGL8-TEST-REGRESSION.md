@@ -59,3 +59,12 @@ Die Python-Tests enthalten Quelltextverträge und native Host-C++-Tests. Sie fü
 - `python3 -m unittest discover -s tests -p 'test_*.py'`: **37 Tests, alle bestanden.**
 - `pio run -e fnk0086`: **SUCCESS**, RAM 130.288 B (39,8 %), Flash 1.259.523 B (40,0 %); zusätzlich ohne `HermesLocalConfig.h` (CI-Pfad) erfolgreich gebaut.
 - Gerät: `/dev/ttyACM0`, VID:PID `1A86:55D3`, SER `58FC003021` (`/dev/serial/by-id/usb-1a86_USB_Single_Serial_58FC003021-if00`). **Nicht geflasht**, keine Hardwareprüfung dieser Änderungen. Zu prüfen auf dem Gerät: Layout der PulsOx-Kurve und der fünfzeiligen Hermes-/System-Texte, Hermes-Verhalten bei abgeschaltetem Server (Worker darf höchstens ca. 12 s pro Abruf blockieren).
+
+## Hardware-Nachprüfung (13.10.2026, spät)
+
+Geflasht auf `/dev/ttyACM0` (SER `58FC003021`) nach Freigabe durch den Nutzer; Upload per Hash verifiziert.
+
+- **TLS-Logzeilen:** Nach vollständiger Antwort schloss `http.end()` die vom Server bereits beendete TLS-Verbindung über `available()` und protokollierte mbedTLS `-76` („failed available check“). Jetzt wird nach vollständig gelesenem Body zuerst still `client->stop()` aufgerufen; unvollständige oder fehlerhafte Übertragungen melden weiterhin normal. 40 s Log: keine Fehlerzeilen, `end_ms` 1–2 ms.
+- **Displayfotos (Nutzer):** System- und Hermes-Seite zeigen alle fünf Zeilen vollständig im Panel; PulsOx-Layout (Zeilen, Kurve, Hinweis) passt.
+- **PulsOx-Kurve korrigiert:** Ohne Finger hat die Auto-Skalierung die langsame IR-Drift als große Rampe dargestellt. Die Kurve wird jetzt nur bei erkanntem Finger gezeichnet und vorher mit einem zentrierten gleitenden 1-s-Mittelwert hochpassgefiltert (`PulsOx::detrendTrace()`, nativ getestet: Rampe bleibt flach, Pulse auf Drift erreichen volle Skala).
+- Tests: 38 bestanden. Build: SUCCESS (RAM 39,8 %, Flash 40,0 %). Die Kurve mit aufgelegtem Finger ist noch nicht per Foto bestätigt.
