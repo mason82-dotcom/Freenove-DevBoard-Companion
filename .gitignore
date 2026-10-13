@@ -12,3 +12,5 @@ config/private/
 include/HermesLocalConfig.h
 # Local OBD2 adapter endpoint (lab/vehicle). Template stays tracked.
 include/Obd2LocalConfig.h
+# Local FTP credentials. Template stays tracked.
+include/FtpLocalConfig.h

@@ -4,6 +4,7 @@
 
 #include "BoardTouch.h"
 #include "CompanionUi.h"
+#include "SdCard.h"
 
 // LVGL 8 boots directly into the validated 320x240 GUI.
 // Rebuild with -DCOMPANION_DIAGNOSTIC_BOOT=1 for paused staged startup.
@@ -24,6 +25,8 @@ void setup() {
     Serial.println();
     Serial.println("Freenove-DevBoard-Companion v0.2.0 / LVGL 8.3.11");
 
+    // Global SD card for all modules (FTP, future logging/recording).
+    SdCard::begin();
     const bool touchDetected = BoardTouch::begin();
     Serial.printf("FT6336U probe: %s\n", touchDetected ? "FOUND" : "MISSING");
     Serial.printf("PSRAM at boot: %u bytes free\n",
