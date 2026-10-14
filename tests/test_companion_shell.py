@@ -1,4 +1,5 @@
 """Regression contracts for the active LVGL 8 eight-tile shell."""
+import re
 import shutil
 import subprocess
 import tempfile
@@ -118,6 +119,15 @@ class CompanionShellTests(unittest.TestCase):
         self.assertIn('if (length != 5 || strncmp(line, "diag", 4) != 0) return -1;', self.main)
         self.assertIn("if (c == '\\r' || c == '\\n')", self.main)
         self.assertIn("commandOverflow ? -1 : diagnosticCommand(", self.main)
+
+    def test_lvgl_printf_never_gets_floats(self):
+        # LV_SPRINTF_USE_FLOAT is 0: a float conversion in lv_label_set_text_fmt
+        # shifts all later arguments (System page crashed with LoadProhibited).
+        for path in sorted((ROOT / "src").glob("*.cpp")):
+            text = path.read_text(encoding="utf-8")
+            for call in re.findall(r"lv_label_set_text_fmt\((.*?)\);", text, flags=re.S):
+                with self.subTest(file=path.name):
+                    self.assertNotRegex(call, r"%[-+ #0-9.]*[fFeEgGaA]")
 
     def test_no_transport_or_control_in_shell(self):
         source = "\n".join((ROOT / "src" / part).read_text(encoding="utf-8")

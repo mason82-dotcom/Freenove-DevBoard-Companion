@@ -296,7 +296,10 @@ void updateSystemDetails() {
     sdLine(sd, sizeof(sd));
     ftpLine(ftp, sizeof(ftp));
     const unsigned long up = now / 1000;
-    lv_label_set_text_fmt(statusLabel,
+    // snprintf, not lv_label_set_text_fmt: LVGL's printf has no float
+    // support (LV_SPRINTF_USE_FLOAT 0) and a %f shifts every later argument.
+    char text[400];
+    snprintf(text, sizeof(text),
         "%s | Up %lu:%02lu:%02lu\nHeap %u KB (min %u) | Block %u KB\n"
         "PSRAM %.1f MB frei | CPU %u MHz\n%s\n%s\n%s\n%s",
         clock, up / 3600, up / 60 % 60, up % 60,
@@ -305,6 +308,7 @@ void updateSystemDetails() {
         static_cast<unsigned>(ESP.getMaxAllocHeap() / 1024),
         static_cast<double>(ESP.getFreePsram()) / 1048576.0,
         static_cast<unsigned>(ESP.getCpuFreqMHz()), wifi, pi, sd, ftp);
+    lv_label_set_text(statusLabel, text);
     if (ftpButtonLabel != nullptr)
         lv_label_set_text(ftpButtonLabel, !FtpServer::configured() ? "FTP: --"
                                           : FtpServer::enabled() ? "FTP: an" : "FTP: aus");
