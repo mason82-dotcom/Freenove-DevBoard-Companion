@@ -94,9 +94,70 @@ int main() {
     assert(std::strstr(text, "Speed: 5.3 m/s | Vert.: -0.2 m/s"));
     assert(std::strstr(text, "GPS: 18 Sat | RTK: 32 fix"));
     assert(std::strstr(text, "RC ..0C99: 76 % | Funk: 5/5"));
+    assert(std::strstr(text, "\nFlug: --"));  // no in-air message yet
+    s.aircraft.flight.any = true;
+    s.aircraft.flight.inAir = true;
+    s.aircraft.flight.airMs = 192500;
+    s.aircraft.flight.maxElevationM = 48.4f;
+    s.aircraft.flight.maxHomeDistanceM = 310.2f;
+    format(s, 11000, text, sizeof(text));
+    assert(std::strstr(text, "\nFlug: 3:12 | Max: 48 m / 310 m"));
+
+    // Alerts: none while all is well.
+    char line[48];
+    assert(alert(s, 11000, line, sizeof(line)) == Alert::None && line[0] == 0);
+    // Battery against the aircraft's own thresholds, fallback 25/15 %.
+    s.aircraft.batteryPct = 26;
+    assert(alert(s, 11000, line, sizeof(line)) == Alert::None);  // above the 25 % fallback
+    s.aircraft.batteryPct = 25;
+    assert(alert(s, 11000, line, sizeof(line)) == Alert::Warning);
+    assert(std::strcmp(line, "Akku 25 % - Rueckkehr empfohlen") == 0);
+    s.aircraft.returnHomePowerPct = 30;
+    s.aircraft.batteryPct = 30;
+    assert(alert(s, 11000, line, sizeof(line)) == Alert::Warning);
+    s.aircraft.landingPowerPct = 18;
+    s.aircraft.batteryPct = 18;
+    assert(alert(s, 11000, line, sizeof(line)) == Alert::Critical);
+    assert(std::strcmp(line, "Akku 18 % - Landung noetig") == 0);
+    s.aircraft.batteryPct = 87;
+    // Flight modes.
+    s.aircraft.modeCode = 9;
+    assert(alert(s, 11000, line, sizeof(line)) == Alert::Warning &&
+           std::strcmp(line, "Rueckkehr (RTH) aktiv") == 0);
+    s.aircraft.modeCode = 12;
+    assert(alert(s, 11000, line, sizeof(line)) == Alert::Critical &&
+           std::strcmp(line, "ZWANGSLANDUNG") == 0);
+    s.aircraft.modeCode = 3;
+    // Remote: link quality and battery; critical beats an earlier warning.
+    s.remote.linkQuality = 2;
+    assert(alert(s, 11000, line, sizeof(line)) == Alert::Warning &&
+           std::strcmp(line, "Funk schwach (2/5)") == 0);
+    s.aircraft.batteryPct = 20;  // warning (RTH 30 %) ...
+    s.remote.linkQuality = 1;    // ... but the link is critical
+    assert(alert(s, 11000, line, sizeof(line)) == Alert::Critical &&
+           std::strcmp(line, "Funk sehr schwach (1/5)") == 0);
+    s.aircraft.batteryPct = 87;
+    s.remote.linkQuality = 5;
+    s.remote.batteryPct = 12;
+    assert(alert(s, 11000, line, sizeof(line)) == Alert::Warning &&
+           std::strcmp(line, "RC-Akku 12 %") == 0);
+    s.remote.batteryPct = 76;
+    // Silence while airborne is critical; on the ground it is not.
+    assert(alert(s, 10000 + kStaleMs + 4000, line, sizeof(line)) == Alert::Critical);
+    assert(std::strcmp(line, "Drohne sendet nicht mehr (10 s)") == 0);
+    s.aircraft.flight.inAir = false;
+    assert(alert(s, 10000 + kStaleMs + 4000, line, sizeof(line)) == Alert::None);
+    s.aircraft.flight.inAir = true;
+    // No alerts without a broker session.
+    s.link = Link::Error;
+    assert(alert(s, 11000, line, sizeof(line)) == Alert::None);
+    s.link = Link::Subscribed;
+    assert(inAir(3) && inAir(9) && inAir(20) && !inAir(0) && !inAir(2) && !inAir(13) &&
+           !inAir(14) && !inAir(-1));
     // Stale: never show old values as live.
     format(s, 10000 + kStaleMs + 2000, text, sizeof(text));
     assert(std::strstr(text, "| offline (8 s)") && std::strstr(text, "Akku: -- | Restflug: --"));
+    assert(std::strstr(text, "Modus: keine Daten"));
     assert(std::strstr(text, "RC: -- | Funk: --"));
     s.aircraft.remainFlightS = 0;
     format(s, 11000, text, sizeof(text));

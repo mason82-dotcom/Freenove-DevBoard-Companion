@@ -63,6 +63,82 @@ const char* modeName(int modeCode) {
     return kNames[modeCode];
 }
 
+bool inAir(int modeCode) {
+    // 0-2 on the ground, 13 firmware update, 14 disconnected, -1 unknown.
+    return (modeCode >= 3 && modeCode <= 12) || (modeCode >= 15 && modeCode <= 20);
+}
+
+// Fallback thresholds if the aircraft does not report its own.
+constexpr int kReturnHomeFallbackPct = 25;
+constexpr int kLandingFallbackPct = 15;
+constexpr int kRemoteLowPct = 15;
+
+Alert alert(const Snapshot& s, uint32_t nowMs, char* out, size_t capacity) {
+    if (out == nullptr || capacity == 0) return Alert::None;
+    out[0] = 0;
+    if (s.link != Link::Subscribed) return Alert::None;
+    const Aircraft& a = s.aircraft;
+    const Remote& r = s.remote;
+    const bool live = a.present && fresh(a.atMs, nowMs);
+    const bool remoteLive = r.present && fresh(r.atMs, nowMs);
+    Alert level = Alert::None;
+    char text[48];
+    // Checks run from most to least important; the first alert of the
+    // highest level wins.
+    auto raise = [&](Alert l) {
+        if (l <= level) return;
+        level = l;
+        snprintf(out, capacity, "%s", text);
+    };
+
+    // Silence while airborne is the most serious: the display no longer
+    // knows what the aircraft is doing.
+    if (a.present && !live && a.flight.inAir) {
+        snprintf(text, sizeof(text), "Drohne sendet nicht mehr (%lu s)",
+                 static_cast<unsigned long>((nowMs - a.atMs) / 1000));
+        raise(Alert::Critical);
+    }
+    if (live) {
+        const int landing = a.landingPowerPct > 0 ? a.landingPowerPct : kLandingFallbackPct;
+        const int rth = a.returnHomePowerPct > 0 ? a.returnHomePowerPct : kReturnHomeFallbackPct;
+        if (a.modeCode == 11 || a.modeCode == 12) {
+            snprintf(text, sizeof(text), "ZWANGSLANDUNG");
+            raise(Alert::Critical);
+        }
+        if (a.batteryPct >= 0 && a.batteryPct <= landing) {
+            snprintf(text, sizeof(text), "Akku %d %% - Landung noetig", a.batteryPct);
+            raise(Alert::Critical);
+        }
+        if (a.modeCode == 9) {
+            snprintf(text, sizeof(text), "Rueckkehr (RTH) aktiv");
+            raise(Alert::Warning);
+        }
+        if (a.modeCode == 10) {
+            snprintf(text, sizeof(text), "Automatische Landung");
+            raise(Alert::Warning);
+        }
+        if (a.batteryPct >= 0 && a.batteryPct <= rth) {
+            snprintf(text, sizeof(text), "Akku %d %% - Rueckkehr empfohlen", a.batteryPct);
+            raise(Alert::Warning);
+        }
+    }
+    if (remoteLive) {
+        if (r.linkQuality >= 0 && r.linkQuality <= 1) {
+            snprintf(text, sizeof(text), "Funk sehr schwach (%d/5)", r.linkQuality);
+            raise(Alert::Critical);
+        }
+        if (r.linkQuality == 2) {
+            snprintf(text, sizeof(text), "Funk schwach (2/5)");
+            raise(Alert::Warning);
+        }
+        if (r.batteryPct >= 0 && r.batteryPct <= kRemoteLowPct) {
+            snprintf(text, sizeof(text), "RC-Akku %d %%", r.batteryPct);
+            raise(Alert::Warning);
+        }
+    }
+    return level;
+}
+
 void format(const Snapshot& s, uint32_t nowMs, char* out, size_t capacity) {
     if (out == nullptr || capacity == 0) return;
     if (s.link == Link::NotConfigured) {
@@ -85,6 +161,7 @@ void format(const Snapshot& s, uint32_t nowMs, char* out, size_t capacity) {
 
     char mode[32];
     if (live) snprintf(mode, sizeof(mode), "%s", modeName(a.modeCode));
+    else if (connected && a.present) snprintf(mode, sizeof(mode), "keine Daten");
     else if (connected) snprintf(mode, sizeof(mode), "keine Drohne online");
     else snprintf(mode, sizeof(mode), "--");
 
@@ -112,6 +189,19 @@ void format(const Snapshot& s, uint32_t nowMs, char* out, size_t capacity) {
     integer(rcBattery, sizeof(rcBattery), remoteLive, r.batteryPct, "%d %%");
     integer(rcLink, sizeof(rcLink), remoteLive, r.linkQuality, "%d/5");
 
+    // Current or last flight; kept while the aircraft stays selected. Short
+    // form (max height / max distance): the long one overflowed the panel.
+    char flight[48];
+    const FlightStats& f = a.flight;
+    if (connected && a.present && f.any) {
+        const uint32_t seconds = f.airMs / 1000;
+        snprintf(flight, sizeof(flight), "Flug: %lu:%02lu | Max: %.0f m / %.0f m",
+                 static_cast<unsigned long>(seconds / 60), static_cast<unsigned long>(seconds % 60),
+                 static_cast<double>(f.maxElevationM), static_cast<double>(f.maxHomeDistanceM));
+    } else {
+        snprintf(flight, sizeof(flight), "Flug: --");
+    }
+
     snprintf(out, capacity,
              "%s\n"
              "Modus: %s\n"
@@ -119,8 +209,9 @@ void format(const Snapshot& s, uint32_t nowMs, char* out, size_t capacity) {
              "Hoehe: %s | Entf.: %s\n"
              "Speed: %s | Vert.: %s\n"
              "GPS: %s Sat | RTK: %s\n"
-             "RC%s%s: %s | Funk: %s",
+             "RC%s%s: %s | Funk: %s\n"
+             "%s",
              header, mode, battery, remain, height, distance, hSpeed, vSpeed, gps, rtk,
-             remoteLive ? " .." : "", remoteLive ? tail(r.sn) : "", rcBattery, rcLink);
+             remoteLive ? " .." : "", remoteLive ? tail(r.sn) : "", rcBattery, rcLink, flight);
 }
 }  // namespace DroneTelemetry

@@ -4,6 +4,7 @@
 #include <cassert>
 #include <cstdio>
 #include <cstring>
+#include <string>
 
 using namespace DroneTelemetry;
 
@@ -32,7 +33,16 @@ const char* kPilot2Aircraft =
     R"({"gateway":"RC0003","data":{"68-0-0":{"payload_index":"68-0-0","gimbal_pitch":0},
         "cameras":[{"camera_mode":0,"payload_index":"68-0-0"}],"mode_code":0,"elevation":0,
         "home_distance":0,"horizontal_speed":0,"vertical_speed":0,
-        "battery":{"capacity_percent":64,"remain_flight_time":0}}})";
+        "battery":{"capacity_percent":64,"remain_flight_time":0,
+                   "return_home_power":30,"landing_power":15}}})";
+
+std::string aircraftAt(int mode, double elevation, double distance) {
+    char json[200];
+    std::snprintf(json, sizeof(json),
+                  R"({"gateway":"RC9","data":{"mode_code":%d,"elevation":%.1f,"home_distance":%.1f}})",
+                  mode, elevation, distance);
+    return json;
+}
 }  // namespace
 
 int main() {
@@ -90,6 +100,27 @@ int main() {
     p.link = Link::Subscribed;
     assert(apply("thing/product/AC0003/osd", kPilot2Aircraft, 100, p));
     assert(p.aircraft.payloadType == 68 && p.aircraft.batteryPct == 64 && p.aircraft.modeCode == 0);
+    assert(p.aircraft.returnHomePowerPct == 30 && p.aircraft.landingPowerPct == 15);
+
+    // Flight statistics: start at take-off, gaps count at most 5 s, maxima
+    // only while airborne, kept after landing, restarted by the next take-off.
+    Snapshot f;
+    f.link = Link::Subscribed;
+    const char* topic = "thing/product/AC9/osd";
+    assert(apply(topic, aircraftAt(0, 0, 0).c_str(), 1000, f));
+    assert(!f.aircraft.flight.any && !f.aircraft.flight.inAir);
+    assert(apply(topic, aircraftAt(4, 5, 0).c_str(), 2000, f));      // take-off
+    assert(f.aircraft.flight.any && f.aircraft.flight.inAir && f.aircraft.flight.airMs == 0);
+    assert(apply(topic, aircraftAt(3, 48.5, 120).c_str(), 3000, f));
+    assert(apply(topic, aircraftAt(3, 30, 310).c_str(), 4000, f));
+    assert(apply(topic, aircraftAt(3, 30, 200).c_str(), 64000, f));  // 60 s gap -> 5 s
+    assert(f.aircraft.flight.airMs == 1000 + 1000 + 5000);
+    assert(f.aircraft.flight.maxElevationM > 48.4f && f.aircraft.flight.maxHomeDistanceM == 310.0f);
+    assert(apply(topic, aircraftAt(0, 0, 0).c_str(), 65000, f));     // landed
+    assert(!f.aircraft.flight.inAir && f.aircraft.flight.airMs == 7000);
+    assert(f.aircraft.flight.maxHomeDistanceM == 310.0f);           // kept after landing
+    assert(apply(topic, aircraftAt(4, 2, 0).c_str(), 90000, f));     // next take-off
+    assert(f.aircraft.flight.airMs == 0 && f.aircraft.flight.maxHomeDistanceM == 0.0f);
     std::puts("drone osd smoke: OK");
     return 0;
 }

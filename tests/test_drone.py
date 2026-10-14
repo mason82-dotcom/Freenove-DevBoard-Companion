@@ -97,6 +97,27 @@ class DroneTests(unittest.TestCase):
         self.assertIn("kAuthRetryDelayMs = 60000", self.client)
         self.assertIn("MALLOC_CAP_SPIRAM", self.client)
 
+    def test_alert_footer_and_flight_stats_survive_page_visits(self):
+        self.assertIn("DroneTelemetry::alert(snapshot, now, alertText, sizeof(alertText))", self.gui)
+        self.assertIn("droneFooter = newLabel(root, kDroneFooter, 10, 212, 0x8EA8C1);", self.gui)
+        self.assertIn("0xFF6B6B", self.gui)
+        self.assertIn("s.aircraft = aircraft;", self.client)
+        self.assertIn("f.airMs += gap < 5000 ? gap : 5000;", self.osd)
+
+    def test_simulator_flight_scenario(self):
+        sim = load_sim()
+        modes = [sim.flight_state(t)[0] for t in range(0, 45)]
+        # ground -> take-off -> manual -> RTH -> landing -> ground, in this order
+        order = [m for i, m in enumerate(modes) if i == 0 or modes[i - 1] != m]
+        self.assertEqual(order, [0, 4, 3, 9, 10, 0])
+        self.assertLessEqual(sim.flight_state(22)[3], 30)  # RTH starts at the 30 % threshold
+        self.assertEqual(sim.flight_state(59)[3], sim.flight_state(40)[3])  # no drain on the ground
+        msg = sim.aircraft_osd("RC1", 0, "m3m", flight_t=25)
+        self.assertEqual(msg["data"]["battery"]["return_home_power"], 30)
+        qualities = {sim.rc_osd("RC1", s, weak_link=True)["data"]["wireless_link"]["sdr_quality"]
+                     for s in range(30)}
+        self.assertEqual(qualities, {1, 2, 3, 4, 5})
+
     def test_local_config_is_ignored_and_template_uses_companion(self):
         ignore = read(".gitignore").splitlines()
         self.assertIn("include/DroneLocalConfig.h", ignore)
@@ -113,7 +134,8 @@ class DroneTests(unittest.TestCase):
         include = arduinojson_include()
         if include is None:
             self.skipTest("ArduinoJson not installed (run pio run -e fnk0086 once)")
-        compile_and_run(self, [ROOT / "tests" / "drone_osd_smoke.cpp", ROOT / "src" / "DroneOsd.cpp"],
+        compile_and_run(self, [ROOT / "tests" / "drone_osd_smoke.cpp", ROOT / "src" / "DroneOsd.cpp",
+                               ROOT / "src" / "DroneDisplay.cpp"],
                         [ROOT / "include", include], "fnk0086-droneosd-")
 
     def test_simulator_sends_osd_without_positions(self):

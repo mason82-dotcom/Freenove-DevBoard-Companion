@@ -43,6 +43,8 @@ void applyAircraft(JsonVariantConst data, const char* sn, const char* gateway,
     JsonVariantConst battery = data["battery"];
     a.batteryPct = intOr(battery["capacity_percent"], a.batteryPct);
     a.remainFlightS = intOr(battery["remain_flight_time"], a.remainFlightS);
+    a.returnHomePowerPct = intOr(battery["return_home_power"], a.returnHomePowerPct);
+    a.landingPowerPct = intOr(battery["landing_power"], a.landingPowerPct);
     if (data["elevation"].is<float>()) {
         a.hasElevation = true;
         a.elevationM = data["elevation"].as<float>();
@@ -60,6 +62,25 @@ void applyAircraft(JsonVariantConst data, const char* sn, const char* gateway,
     a.gpsSats = intOr(position["gps_number"], a.gpsSats);
     a.rtkSats = intOr(position["rtk_number"], a.rtkSats);
     a.rtkFixed = intOr(position["is_fixed"], a.rtkFixed);
+
+    // Flight statistics: a new flight starts at every take-off; gaps (page
+    // closed, lost messages) count at most 5 s towards the flight time.
+    DroneTelemetry::FlightStats& f = a.flight;
+    const bool airborne = DroneTelemetry::inAir(a.modeCode);
+    if (airborne && !f.inAir) {
+        f = DroneTelemetry::FlightStats{};
+        f.any = true;
+    } else if (airborne) {
+        const uint32_t gap = nowMs - f.lastMs;
+        f.airMs += gap < 5000 ? gap : 5000;
+    }
+    if (airborne) {
+        if (a.hasElevation && a.elevationM > f.maxElevationM) f.maxElevationM = a.elevationM;
+        if (a.hasHomeDistance && a.homeDistanceM > f.maxHomeDistanceM)
+            f.maxHomeDistanceM = a.homeDistanceM;
+    }
+    f.inAir = airborne;
+    f.lastMs = nowMs;
 }
 }  // namespace
 
@@ -102,6 +123,8 @@ bool applyOsd(const char* topic, const char* payload, size_t length,
         f[key] = true;
     f["battery"]["capacity_percent"] = true;
     f["battery"]["remain_flight_time"] = true;
+    f["battery"]["return_home_power"] = true;
+    f["battery"]["landing_power"] = true;
     f["position_state"]["gps_number"] = true;
     f["position_state"]["rtk_number"] = true;
     f["position_state"]["is_fixed"] = true;

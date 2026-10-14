@@ -241,8 +241,14 @@ void task(void*) {
             continue;
         }
         if (s.link == Link::Idle) {
-            s = Snapshot{};  // fresh selection and counters for every visit
+            // Fresh counters for every visit; the last aircraft and its flight
+            // statistics stay (shown as offline until it reports again).
+            const DroneTelemetry::Aircraft aircraft = s.aircraft;
+            const DroneTelemetry::Remote remote = s.remote;
+            s = Snapshot{};
             s.link = Link::Idle;
+            s.aircraft = aircraft;
+            s.remote = remote;
         }
         WifiLink::request(WifiLink::Profile::Home);
         if (!WifiLink::connectedTo(WifiLink::Profile::Home)) {

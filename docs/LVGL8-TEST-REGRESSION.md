@@ -167,3 +167,11 @@ Geflasht auf `/dev/ttyACM0` (SER `58FC003021`) nach Freigabe durch den Nutzer; U
 - Board mit Simulator (`tools/drone_osd_sim.py --second-aircraft`): Anmeldung und SUBSCRIBE < 1 s, Mavic 3T ausgewählt, zweites Fluggerät samt Fernsteuerung ignoriert (`messages=20 ignored=20` je 10 s), Task-Stack 3464 B frei, Seitenwechsel schließt und öffnet die Sitzung sauber.
 - Board mit echter Drohne (Foto des Benutzers): `..Q6PR | live`, Bereit (am Boden), Akku 62 %, GPS 8 Sat, RTK 4, Fernsteuerung `..16R0` 79 % / Funk 5/5. Modellanzeige vor dem `cameras`-Fix nur „Drohne“.
 - Nach dem Fix (Foto des Benutzers, Log `Drone: aircraft ..Q6PR (Mavic 3M)`): `Mavic 3M ..Q6PR | live`, Akku 59 %, `Restflug: --` am Boden, GPS 9 Sat, RTK 9, Fernsteuerung 78 % / Funk 5/5; `messages` ~1/s, `ignored=0`, Stack 3464 B frei.
+
+
+## Drohne: Warnungen und Flugstatistik (14.10.2026)
+
+- Fußzeile der Drohnen-Seite = Warnzeile (gelb Warnung, rot kritisch, sonst „Nur Lesen | Telemetrie von AeroNexus“). Kritisch: Drohne sendet im Flug nicht mehr, Zwangslandung, Akku ≤ `landing_power`, Funk ≤ 1/5. Warnung: RTH aktiv, automatische Landung, Akku ≤ `return_home_power`, Funk 2/5, RC-Akku ≤ 15 %. Schwellen kommen von der Drohne selbst (`battery.return_home_power`/`landing_power`), sonst 25/15 %. Pure Funktion `DroneTelemetry::alert()`.
+- 8. Zeile: Flugzeit, maximale Höhe und Entfernung des laufenden bzw. letzten Flugs (`Flug: 0:35 | Max: 38 m / 149 m`). Neustart bei jedem Abheben, Lücken zählen höchstens 5 s, bleibt beim Verlassen der Seite erhalten (gleiches Fluggerät). Die erste Fassung („max 38 m hoch, 149 m weit“) lief über den Panelrand (Foto) und wurde gekürzt.
+- Simulator: `--flight` spielt alle 60 s einen Flug (Boden, Start, manuell, Akku 30 % → RTH, Landung), `--weak-link` lässt die Funkqualität 5 → 1 → 5 laufen. Erste Fassung ließ den Akku am Boden weiter sinken (13 %, rot am Boden); jetzt bleibt er nach der Landung stehen.
+- Board (Fotos des Benutzers): gelb „Akku 29 % - Rueckkehr empfohlen“ im manuellen Flug, rot „Akku 13 % - Landung noetig“, rot „Drohne sendet nicht mehr (42 s)“ nach Abbruch des Simulators im Flug, Statistik danach erhalten. Log: `ignored=0`, Stack 3300 B frei. Tests: 68 bestanden.

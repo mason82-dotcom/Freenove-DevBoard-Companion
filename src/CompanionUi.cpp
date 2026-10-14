@@ -51,6 +51,9 @@ uint32_t lastHermesRefresh = 0;
 lv_obj_t* obd2Label = nullptr;
 uint32_t lastObd2Refresh = 0;
 lv_obj_t* droneLabel = nullptr;
+lv_obj_t* droneFooter = nullptr;
+constexpr char kDroneFooter[] = "Nur Lesen | Telemetrie von AeroNexus";
+DroneTelemetry::Alert droneAlertShown = DroneTelemetry::Alert::None;
 uint32_t lastDroneRefresh = 0;
 lv_obj_t* ftpButtonLabel = nullptr;
 lv_obj_t* radioStation = nullptr;
@@ -152,6 +155,7 @@ void makeScreenBlank() {
     hermesLabel = nullptr;
     obd2Label = nullptr;
     droneLabel = nullptr;
+    droneFooter = nullptr;
     radioStation = radioTitle = radioStatus = radioVolume = radioPlayLabel = nullptr;
     ftpButtonLabel = nullptr;
 }
@@ -321,8 +325,22 @@ void updateObd2Details() {
 void updateDroneDetails() {
     if (!droneLabel || !showing(CompanionModules::Id::Drone)) return;
     char text[320];
-    DroneTelemetry::format(DroneTelemetry::read(), millis(), text, sizeof(text));
+    const auto snapshot = DroneTelemetry::read();
+    const uint32_t now = millis();
+    DroneTelemetry::format(snapshot, now, text, sizeof(text));
     lv_label_set_text(droneLabel, text);
+    if (!droneFooter) return;
+    // Footer doubles as the alert line: yellow warning, red critical.
+    char alertText[48];
+    const auto level = DroneTelemetry::alert(snapshot, now, alertText, sizeof(alertText));
+    setTextIfChanged(droneFooter, level == DroneTelemetry::Alert::None
+                                      ? kDroneFooter : alertText);
+    if (level != droneAlertShown) {
+        droneAlertShown = level;
+        const uint32_t rgb = level == DroneTelemetry::Alert::Critical ? 0xFF6B6B
+                             : level == DroneTelemetry::Alert::Warning ? 0xFFD166 : 0x8EA8C1;
+        lv_obj_set_style_text_color(droneFooter, color(rgb), 0);
+    }
 }
 
 void updatePulsOxWave() {
@@ -444,7 +462,8 @@ void showModule(uint8_t page) {
                            ? "Nur Lesen | nur im Stillstand bedienen"
                            : "Nur Lesen (Mode 01) | Laborprofil", 10, 212, 0x8EA8C1);
     } else if (module.id == CompanionModules::Id::Drone) {
-        newLabel(root, "Nur Lesen | Telemetrie von AeroNexus", 10, 212, 0x8EA8C1);
+        droneFooter = newLabel(root, kDroneFooter, 10, 212, 0x8EA8C1);
+        droneAlertShown = DroneTelemetry::Alert::None;
     } else {
         newLabel(root, "Nur lokale Anzeige | CFG1 320x240", 10, 212, 0x8EA8C1);
     }

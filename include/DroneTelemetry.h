@@ -14,6 +14,17 @@ enum class Link : uint8_t {
     NotConfigured, Idle, WaitingForWifi, Connecting, Subscribed, AuthFailed, Error
 };
 
+// Current or last flight of the selected aircraft. Restarts at every take-off
+// and survives leaving the page (same aircraft).
+struct FlightStats {
+    bool any = false;          // at least one in-air message seen
+    bool inAir = false;
+    uint32_t airMs = 0;        // accumulated time in the air
+    uint32_t lastMs = 0;
+    float maxElevationM = 0;
+    float maxHomeDistanceM = 0;
+};
+
 struct Aircraft {
     bool present = false;
     char sn[24] = {};
@@ -23,6 +34,8 @@ struct Aircraft {
     int modeCode = -1;        // DJI mode_code, -1 unknown
     int batteryPct = -1;
     int remainFlightS = -1;
+    int returnHomePowerPct = -1;  // battery level the aircraft wants to start RTH
+    int landingPowerPct = -1;     // battery level it lands on its own
     bool hasElevation = false;
     float elevationM = 0;     // relative to the take-off point
     bool hasHomeDistance = false;
@@ -33,6 +46,7 @@ struct Aircraft {
     int gpsSats = -1;
     int rtkSats = -1;
     int rtkFixed = -1;        // 0 not, 1 fixing, 2 fixed, 3 failed
+    FlightStats flight;
 };
 
 struct Remote {
@@ -51,6 +65,8 @@ struct Snapshot {
     uint32_t ignored = 0;     // other devices, oversized or malformed messages
 };
 
+enum class Alert : uint8_t { None, Warning, Critical };
+
 void begin();
 // UI only: start/stop the subscription when the page is entered/left.
 bool requestActive(bool active);
@@ -68,4 +84,8 @@ bool serialFromTopic(const char* topic, char* out, size_t capacity);
 const char* modelName(int payloadType);
 const char* modeName(int modeCode);
 void format(const Snapshot& s, uint32_t nowMs, char* out, size_t capacity);
+// Most important alert for the footer; out is empty for Alert::None.
+Alert alert(const Snapshot& s, uint32_t nowMs, char* out, size_t capacity);
+// True for mode codes in which the aircraft is airborne.
+bool inAir(int modeCode);
 }  // namespace DroneTelemetry
