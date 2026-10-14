@@ -6,6 +6,7 @@
 #include "BoardTouch.h"
 #include "CompanionUi.h"
 #include "SdCard.h"
+#include "TlsMemory.h"
 
 // LVGL 8 boots directly into the validated 320x240 GUI.
 // Rebuild with -DCOMPANION_DIAGNOSTIC_BOOT=1 for paused staged startup.
@@ -37,6 +38,8 @@ void setup() {
     Serial.println();
     Serial.println("Freenove-DevBoard-Companion v0.2.0 / LVGL 8.3.11");
 
+    // Before any module can open a TLS connection.
+    Serial.printf("TLS memory: %s\n", TlsMemory::begin() ? "PSRAM" : "internal");
     // Global SD card for all modules (FTP, future logging/recording).
     SdCard::begin();
     const bool touchDetected = BoardTouch::begin();

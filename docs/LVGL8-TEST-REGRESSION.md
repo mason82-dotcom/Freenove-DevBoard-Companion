@@ -148,3 +148,11 @@ Geflasht auf `/dev/ttyACM0` (SER `58FC003021`) nach Freigabe durch den Nutzer; U
 - Fix: `src/main.cpp` nimmt nur noch ganze Zeilen `diag0`/`diag1`/`diag2` (+ Enter) an; längere Zeilen werden verworfen. Test `test_serial_stage_commands_need_whole_lines`.
 - Board-Ergebnis: Port mit `stty echo icanon` und `cat` 25 s geöffnet, Heartbeat wurde zurückgespiegelt, Stufe blieb 2, kein Reset. Tests: 57 bestanden.
 - `TFT_DC` liegt in CFG1 auf GPIO0 (Boot-Pin); unverändert, CFG1 bleibt fest.
+
+
+## Lasttest Webradio + FTP + Hermes; mbedTLS in PSRAM (14.10.2026)
+
+- Lasttest 1 (nur mit DMA-Fix): Webradio ohne Aussetzer, FTP-Upload 45,9 MB (`.m4a`) erfolgreich, Seitenwechsel ohne Probleme, kein Reset. **Aber**: Ab dem ersten Sender scheiterte jeder Hermes-Abruf mit `-32512` (46 Fehlversuche); freier interner Heap 45–70 KB. Die Audio-Bibliothek hält für HTTPS-Streams eine eigene TLS-Sitzung, und mbedTLS allokiert in diesem Framework nur intern (`CONFIG_MBEDTLS_INTERNAL_MEM_ALLOC`). Zwei Sitzungen passen nicht zusammenhängend neben die übrigen Puffer.
+- Fix: `include/TlsMemory.h`, `src/TlsMemory.cpp` leiten zur Laufzeit per `mbedtls_platform_set_calloc_free()` alle mbedTLS-Allokationen in den PSRAM (Fallback intern, Freigabe mit `free()`). Aufruf in `setup()` vor allen Modulen. Test `test_tls_memory_is_routed_to_psram_at_boot`.
+- Lasttest 2 (mit PSRAM-TLS, ~3,5 min): Webradio inkl. HTTPS-Sender „SSL Techno“ laut Benutzer ohne Aussetzer, FTP-Login, Wechsel durch alle Seiten. Hermes: **0 Fehlversuche**, nur `http=200`. PSRAM sinkt während TLS um ~40 KB (Sitzungen liegen dort), interner Heap 40–78 KB. Kein Reset, keine Panic. Tests: 58 bestanden.
+- Nebenbefund: OBD2 meldete `Connection reset by peer`, weil kein ELM327-Adapter erreichbar war; erwartetes Verhalten.

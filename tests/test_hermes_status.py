@@ -37,6 +37,17 @@ class HermesStatusTests(unittest.TestCase):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, self.worker)
 
+    def test_tls_memory_is_routed_to_psram_at_boot(self):
+        # Hermes failed with -32512 whenever an HTTPS radio stream held a
+        # second TLS session in internal RAM.
+        tls = (ROOT / "src" / "TlsMemory.cpp").read_text(encoding="utf-8")
+        main = (ROOT / "src" / "main.cpp").read_text(encoding="utf-8")
+        self.assertIn("mbedtls_platform_set_calloc_free(tlsCalloc, free)", tls)
+        self.assertIn("MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT", tls)
+        self.assertIn("MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT", tls)
+        setup = main.split("void setup()", 1)[1]
+        self.assertLess(setup.index("TlsMemory::begin()"), setup.index("CompanionUi::begin("))
+
     def test_silent_close_only_after_complete_body(self):
         self.assertIn("bodyComplete = true;", self.worker)
         self.assertEqual(self.worker.count("client->stop()"), 1)
