@@ -137,3 +137,4 @@ Geflasht auf `/dev/ttyACM0` (SER `58FC003021`) nach Freigabe durch den Nutzer; U
 - Fix: `src/RadioEngine.cpp` setzt vor `setPinout()` `DMA_DESC_NUM = 12`, `DMA_FRAME_NUM = 256` (24 KB, ~70 ms bei 44,1 kHz). Netzwerk-Jitter fängt der Stream-Puffer im PSRAM ab. Test `test_i2s_dma_stays_small_in_internal_ram`.
 - Board-Ergebnis: Leerlauf-Heap 77 KB (vorher 33 KB), Hermes `http=200 ok=1` über 95 s ohne Fehler; Einbrüche auf ~35 KB nur während eines TLS-Abrufs. Tests: 56 bestanden.
 - Audiowiedergabe mit 12 × 256 DMA-Frames vom Benutzer am Board bestätigt: Webradio läuft ohne Aussetzer.
+- Seitenwechsel zwischen den Modulen während der Wiedergabe vom Benutzer bestätigt: keine Aussetzer, keine Probleme.
