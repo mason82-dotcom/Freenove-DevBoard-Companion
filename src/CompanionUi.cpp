@@ -1,9 +1,12 @@
 #include <Arduino.h>
 #include <TFT_eSPI.h>
+#include <WiFi.h>
 #include <lvgl.h>
+#include <string.h>
 
 #include "BoardTouch.h"
 #include "CompanionModules.h"
+#include "Clock.h"
 #include "CompanionUi.h"
 #include "DroneTelemetry.h"
 #include "FtpServer.h"
@@ -40,6 +43,8 @@ static lv_indev_drv_t lvPointerDriver;
 // Partial RGB565 renderer: always in internal RAM and 4-byte aligned.
 alignas(4) static lv_color_t drawPixels[kWidth * kLinesPerFlush];
 lv_obj_t* statusLabel = nullptr;
+lv_obj_t* clockLabel = nullptr;  // home screen only
+uint32_t lastClockTick = 0;
 uint32_t lastTick = 0;
 uint32_t lastSystemRefresh = 0;
 uint32_t lastPulsOxRefresh = 0;
@@ -75,7 +80,7 @@ uint32_t diagFlushCount = 0;
 // 0 means Home. 1..6 correspond to CompanionModules::kModules.
 uint8_t shownPage = 0;
 uint8_t requestedPage = 0;
-uint8_t moduleNumbers[CompanionModules::kModuleCount] = {1, 2, 3, 4, 5, 6};
+uint8_t moduleNumbers[CompanionModules::kModuleCount] = {1, 2, 3, 4, 5, 6, 7, 8};
 
 // Pages are resolved through the module registry, not hard-coded numbers.
 bool showing(CompanionModules::Id id) {
@@ -156,6 +161,7 @@ void makeScreenBlank() {
     pulsOxSeries = nullptr;
     hermesLabel = nullptr;
     obd2Label = nullptr;
+    clockLabel = nullptr;
     obd2Footer = nullptr;
     droneLabel = nullptr;
     droneFooter = nullptr;
@@ -194,18 +200,29 @@ lv_obj_t* makeButton(lv_obj_t* parent, int x, int y, int w, int h,
     return button;
 }
 
+void updateClock() {
+    if (!clockLabel) return;
+    struct tm t;
+    char text[8];
+    Clock::formatShort(Clock::local(t) ? &t : nullptr, text, sizeof(text));
+    if (strcmp(lv_label_get_text(clockLabel), text) != 0) lv_label_set_text(clockLabel, text);
+}
+
 void showHome() {
     makeScreenBlank();
     lv_obj_t* root = lv_scr_act();
 
     newLabel(root, "FREENOVE COMPANION", 10, 10, 0xE9F3FF);
     newLabel(root, "CFG1", 274, 10, 0x80D4FF);
+    clockLabel = newLabel(root, "--:--", 226, 10, 0xE9F3FF);
+    updateClock();
 
     for (size_t i = 0; i < CompanionModules::kModuleCount; ++i) {
-        const int col = static_cast<int>(i % 3);
-        const int row = static_cast<int>(i / 3);
+        // 4 x 2 grid of 72 x 70 tiles, 6 px gaps, 8 px margins.
+        const int col = static_cast<int>(i % 4);
+        const int row = static_cast<int>(i / 4);
         lv_obj_t* tile = makeButton(root,
-            8 + col * 104, 42 + row * 79, 96, 70,
+            8 + col * 78, 42 + row * 79, 72, 70,
             CompanionModules::kModules[i].title, 0x1A304B);
         lv_obj_add_event_cb(tile, onTileClicked, LV_EVENT_CLICKED, &moduleNumbers[i]);
     }
@@ -256,23 +273,38 @@ void ftpLine(char* out, size_t cap) {
 
 void updateSystemDetails() {
     if (statusLabel == nullptr || !showing(CompanionModules::Id::System)) return;
-    const auto hermes = HermesStatus::read();
-    char wifi[24], sd[48], ftp[48];
-    if (!WifiLink::homeConfigured()) snprintf(wifi, sizeof(wifi), "nicht konfiguriert");
-    else if (!WifiLink::connectedTo(WifiLink::Profile::Home)) snprintf(wifi, sizeof(wifi), "offline");
-    else if (hermes.connected) snprintf(wifi, sizeof(wifi), "%d dBm", static_cast<int>(hermes.rssi));
-    else snprintf(wifi, sizeof(wifi), "verbunden");
+    const uint32_t now = millis();
+    char clock[24], wifi[48], pi[96], sd[48], ftp[48];
+    struct tm t;
+    Clock::formatLong(Clock::local(t) ? &t : nullptr, clock, sizeof(clock));
+    // WLAN: which profile owns the station, signal and address.
+    const auto profile = WifiLink::selected();
+    const bool home = WifiLink::connectedTo(WifiLink::Profile::Home);
+    const bool vehicle = WifiLink::connectedTo(WifiLink::Profile::Vehicle);
+    if (!WifiLink::homeConfigured() && !WifiLink::vehicleConfigured()) {
+        snprintf(wifi, sizeof(wifi), "WLAN: nicht konfiguriert");
+    } else if (home || vehicle) {
+        const IPAddress ip = WiFi.localIP();
+        snprintf(wifi, sizeof(wifi), "WLAN: %s %d dBm | %u.%u.%u.%u", home ? "Heim" : "OBD2",
+                 static_cast<int>(WiFi.RSSI()), ip[0], ip[1], ip[2], ip[3]);
+    } else {
+        snprintf(wifi, sizeof(wifi), "WLAN: %s", profile == WifiLink::Profile::Vehicle
+                                                     ? "sucht OBD2-Adapter" : "offline");
+    }
+    // Raspberry Pi host, reported by the Hermes bridge.
+    HermesStatus::formatPi(HermesStatus::read(), now, pi, sizeof(pi));
     sdLine(sd, sizeof(sd));
     ftpLine(ftp, sizeof(ftp));
+    const unsigned long up = now / 1000;
     lv_label_set_text_fmt(statusLabel,
-        "Uptime: %lu s | CPU: %u MHz\nHeap frei: %u B (min %u B)\nGroesster Block: %u B\n"
-        "PSRAM frei: %u B\nWLAN: %s\n%s\n%s",
-        static_cast<unsigned long>(millis() / 1000),
-        static_cast<unsigned>(ESP.getCpuFreqMHz()),
-        static_cast<unsigned>(ESP.getFreeHeap()),
-        static_cast<unsigned>(ESP.getMinFreeHeap()),
-        static_cast<unsigned>(ESP.getMaxAllocHeap()),
-        static_cast<unsigned>(ESP.getFreePsram()), wifi, sd, ftp);
+        "%s | Up %lu:%02lu:%02lu\nHeap %u KB (min %u) | Block %u KB\n"
+        "PSRAM %.1f MB frei | CPU %u MHz\n%s\n%s\n%s\n%s",
+        clock, up / 3600, up / 60 % 60, up % 60,
+        static_cast<unsigned>(ESP.getFreeHeap() / 1024),
+        static_cast<unsigned>(ESP.getMinFreeHeap() / 1024),
+        static_cast<unsigned>(ESP.getMaxAllocHeap() / 1024),
+        static_cast<double>(ESP.getFreePsram()) / 1048576.0,
+        static_cast<unsigned>(ESP.getCpuFreqMHz()), wifi, pi, sd, ftp);
     if (ftpButtonLabel != nullptr)
         lv_label_set_text(ftpButtonLabel, !FtpServer::configured() ? "FTP: --"
                                           : FtpServer::enabled() ? "FTP: an" : "FTP: aus");
@@ -286,8 +318,16 @@ void onFtpToggle(lv_event_t*) {
 
 void updateHermesDetails() {
     if (!hermesLabel || !showing(CompanionModules::Id::Hermes)) return;
-    char text[224];
-    HermesStatus::format(HermesStatus::read(), millis(), text, sizeof(text));
+    char text[320];
+    const auto snapshot = HermesStatus::read();
+    // Local time of the bridge's last successful probe (UTC epoch from the Pi).
+    char probeClock[12] = "";
+    if (snapshot.lastProbeEpoch != 0 && Clock::valid()) {
+        const time_t epoch = static_cast<time_t>(snapshot.lastProbeEpoch);
+        struct tm t;
+        if (localtime_r(&epoch, &t)) Clock::formatTime(&t, probeClock, sizeof(probeClock));
+    }
+    HermesStatus::format(snapshot, millis(), probeClock, text, sizeof(text));
     lv_label_set_text(hermesLabel, text);
 }
 
@@ -396,16 +436,15 @@ void showModule(uint8_t page) {
     // PulsOx needs the full panel height: its first row is the live sensor state.
     // Panel content area (theme padding 10 px): about 278 x 122 px.
     if (module.id != CompanionModules::Id::PulsOx &&
+        module.id != CompanionModules::Id::Hermes &&
         module.id != CompanionModules::Id::Obd2 &&
         module.id != CompanionModules::Id::Drone &&
         module.id != CompanionModules::Id::Webradio &&
         module.id != CompanionModules::Id::System) {
-        newLabel(panel, module.id == CompanionModules::Id::Hermes
-                            ? "Hermes Live-Status" : module.detail,
-                 9, 10, 0xCFDFED);
+        newLabel(panel, module.detail, 9, 10, 0xCFDFED);
     }
     if (module.id == CompanionModules::Id::Hermes) {
-        hermesLabel = newLabel(panel, "Hermes wird abgefragt ...", 9, 35, 0x81DDBC);
+        hermesLabel = newLabel(panel, "Hermes wird abgefragt ...", 9, 0, 0x81DDBC);
         updateHermesDetails();
     } else if (module.id == CompanionModules::Id::Webradio) {
         radioStation = newLabel(panel, "", 0, 0, 0xF1F6FF);
@@ -523,6 +562,7 @@ bool begin(bool touchPresent) {
                   static_cast<void*>(pointer),
                   static_cast<unsigned>(sizeof(drawPixels)));
     WifiLink::begin();
+    Clock::begin();
     FtpServer::begin();
     Webradio::begin();
     HermesStatus::begin();
@@ -617,6 +657,11 @@ void poll() {
     if (showing(CompanionModules::Id::Hermes) && now - lastHermesRefresh >= 1000) {
         lastHermesRefresh = now;
         updateHermesDetails();
+    }
+    if (now - lastClockTick >= 1000) {
+        lastClockTick = now;
+        Clock::service();
+        if (shownPage == 0) updateClock();
     }
     if (showing(CompanionModules::Id::System) && now - lastSystemRefresh >= 1000) {
         lastSystemRefresh = now;

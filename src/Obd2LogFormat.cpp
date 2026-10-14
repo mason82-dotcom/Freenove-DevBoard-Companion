@@ -48,7 +48,7 @@ void clean(char* dst, size_t cap, const char* src) {
 }  // namespace
 
 size_t formatHeader(const Obd2Status::Snapshot& s, const char* vehicleTitle,
-                    char* out, size_t capacity) {
+                    const char* started, char* out, size_t capacity) {
     if (!out || capacity == 0) return 0;
     char adapter[24], protocol[16], vehicle[32];
     clean(adapter, sizeof(adapter), s.adapter[0] ? s.adapter : "?");
@@ -56,9 +56,10 @@ size_t formatHeader(const Obd2Status::Snapshot& s, const char* vehicleTitle,
     clean(vehicle, sizeof(vehicle), vehicleTitle ? vehicleTitle : "generic");
     int n = snprintf(out, capacity,
                      "# Freenove companion OBD2 log (read-only Mode 01); vehicle=%s; adapter=%s; "
-                     "protocol=%s; t_s=seconds since log start, empty=stale or unsupported\n"
-                     "t_s,adapter_v",
-                     vehicle, adapter, protocol);
+                     "protocol=%s; started=%s; t_s=seconds since log start, "
+                     "empty=stale or unsupported\n"
+                     "t_s,time,adapter_v",
+                     vehicle, adapter, protocol, started && *started ? started : "unknown");
     if (n < 0 || static_cast<size_t>(n) >= capacity) {
         out[0] = 0;
         return 0;
@@ -78,13 +79,15 @@ size_t formatHeader(const Obd2Status::Snapshot& s, const char* vehicleTitle,
 }
 
 size_t formatRow(const Obd2Status::Snapshot& s, uint32_t nowMs, uint32_t startMs,
-                 char* out, size_t capacity) {
+                 const char* clockText, char* out, size_t capacity) {
     if (!out || capacity == 0) return 0;
     char cell[16];
     size_t len = 0;
     out[0] = 0;
     snprintf(cell, sizeof(cell), "%.1f", static_cast<double>(nowMs - startMs) / 1000.0);
     if (!append(out, capacity, len, cell) || !append(out, capacity, len, ",")) return 0;
+    if (clockText && !append(out, capacity, len, clockText)) return 0;
+    if (!append(out, capacity, len, ",")) return 0;
     const auto& av = s.adapterVoltage;
     if (av.valid && static_cast<uint32_t>(nowMs - av.atMs) <= Obd2Status::kAdapterVoltageStaleMs) {
         snprintf(cell, sizeof(cell), "%.1f", static_cast<double>(av.value));

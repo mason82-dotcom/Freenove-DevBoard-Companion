@@ -1,4 +1,5 @@
 #include "Obd2Log.h"
+#include "Clock.h"
 #include "SdCard.h"
 #include <Arduino.h>
 #include <FS.h>
@@ -100,7 +101,10 @@ bool open(Obd2Log::Status& st, const Obd2Status::Snapshot& s, const char* vehicl
     char path[24];
     snprintf(path, sizeof(path), "%s/%04u.csv", Obd2Log::kDirectory, static_cast<unsigned>(number));
     file = fs.open(path, FILE_WRITE);
-    const size_t n = Obd2Log::formatHeader(s, vehicle, text, kTextCapacity);
+    struct tm t;
+    char started[24];
+    Clock::formatIso(Clock::local(t) ? &t : nullptr, started, sizeof(started));
+    const size_t n = Obd2Log::formatHeader(s, vehicle, started, text, kTextCapacity);
     if (!file || n == 0 || file.write(reinterpret_cast<const uint8_t*>(text), n) != n) {
         fail(st, Obd2Log::State::WriteError);
         return false;
@@ -122,7 +126,10 @@ void write(const Obd2Status::Snapshot& s, const char* vehicleTitle) {
     if (givenUp) return;
     Status st = status();
     if (!file && !open(st, s, vehicleTitle)) return;
-    const size_t n = formatRow(s, millis(), startMs, text, kTextCapacity);
+    struct tm t;
+    char clock[12];
+    Clock::formatTime(Clock::local(t) ? &t : nullptr, clock, sizeof(clock));
+    const size_t n = formatRow(s, millis(), startMs, clock, text, kTextCapacity);
     if (n == 0 || (pendingBytes + n > kPendingCapacity && !commit())) {
         fail(st, State::WriteError);
         return;

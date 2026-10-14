@@ -1,4 +1,4 @@
-"""Regression contracts for the active LVGL 8 six-module shell."""
+"""Regression contracts for the active LVGL 8 eight-tile shell."""
 import shutil
 import subprocess
 import tempfile
@@ -9,13 +9,15 @@ ROOT = Path(__file__).resolve().parents[1]
 CPP = r'''
 #include "CompanionModules.h"
 using namespace CompanionModules;
-static_assert(kModuleCount == 6, "Exactly six home modules");
+static_assert(kModuleCount == 8, "Exactly eight home tiles");
 static_assert(kModules[0].id == Id::Hermes, "Hermes tile");
 static_assert(kModules[1].id == Id::Webradio, "Webradio tile");
 static_assert(kModules[2].id == Id::Obd2, "OBD tile");
 static_assert(kModules[3].id == Id::Drone, "Drone tile");
 static_assert(kModules[4].id == Id::System, "System tile");
 static_assert(kModules[5].id == Id::PulsOx, "PulsOx tile");
+static_assert(kModules[6].id == Id::Kids, "Kids placeholder tile");
+static_assert(kModules[7].id == Id::Spare, "Spare placeholder tile");
 int main() { return 0; }
 '''
 
@@ -76,7 +78,7 @@ class CompanionShellTests(unittest.TestCase):
         self.assertIn("lv_disp_flush_ready(disp)", self.gui)
 
     def test_six_tiles_and_navigation_are_deferred_until_after_timer(self):
-        self.assertIn("uint8_t moduleNumbers[CompanionModules::kModuleCount] = {1, 2, 3, 4, 5, 6}", self.gui)
+        self.assertIn("uint8_t moduleNumbers[CompanionModules::kModuleCount] = {1, 2, 3, 4, 5, 6, 7, 8}", self.gui)
         self.assertIn("for (size_t i = 0; i < CompanionModules::kModuleCount; ++i)", self.gui)
         self.assertIn("CompanionModules::kModules[i].title", self.gui)
         self.assertIn("lv_obj_add_event_cb(tile, onTileClicked, LV_EVENT_CLICKED, &moduleNumbers[i])", self.gui)

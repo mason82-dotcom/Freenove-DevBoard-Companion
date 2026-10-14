@@ -29,11 +29,13 @@ void close();
 Status status();
 
 // --- Pure, host-testable helpers (no Arduino) -------------------------------
-// "# ..." line naming vehicle, adapter and protocol, then the column header.
+// "# ..." line naming vehicle, adapter, protocol and the local start time
+// ("" = clock unknown), then the column header.
 size_t formatHeader(const Obd2Status::Snapshot& s, const char* vehicleTitle,
-                    char* out, size_t capacity);
+                    const char* started, char* out, size_t capacity);
+// clockText: local "HH:MM:SS", or "" while the clock is unknown.
 size_t formatRow(const Obd2Status::Snapshot& s, uint32_t nowMs, uint32_t startMs,
-                 char* out, size_t capacity);
+                 const char* clockText, char* out, size_t capacity);
 // File number from "0012.csv" (0 if the name is not a log file).
 uint16_t numberFromName(const char* name);
 void footer(const Status& st, bool vehicle, char* out, size_t capacity);

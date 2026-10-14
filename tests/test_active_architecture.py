@@ -25,8 +25,9 @@ class ActiveArchitectureTests(unittest.TestCase):
             ("Hermes", "Hermes"), ("Webradio", "Webradio"),
             ("Obd2", "OBD2"), ("Drone", "Drohne"),
             ("System", "System"), ("PulsOx", "PulsOx"),
+            ("Kids", "Kids 4in1"), ("Spare", "Frei"),
         ])
-        self.assertEqual(len(entries), 6)
+        self.assertEqual(len(entries), 8)
         self.assertTrue(all(detail for _, _, detail in entries))
         self.assertNotIn("Id::Camera", self.modules)
 
@@ -41,9 +42,13 @@ class ActiveArchitectureTests(unittest.TestCase):
 
     def test_system_live_values_and_periodic_refresh(self):
         self.assertIn("module.id == CompanionModules::Id::System", self.gui)
-        for field in ("Uptime: %lu s", "Heap frei: %u B", "PSRAM frei: %u B"):
+        for field in ("| Up %lu:%02lu:%02lu", "Heap %u KB (min %u) | Block %u KB",
+                      "PSRAM %.1f MB frei | CPU %u MHz"):
             self.assertIn(field, self.gui)
-        for api in ("millis() / 1000", "ESP.getFreeHeap()", "ESP.getFreePsram()"):
+        # Pi and WLAN live on the System page, not on the Hermes page.
+        self.assertIn("HermesStatus::formatPi(HermesStatus::read(), now, pi, sizeof(pi));", self.gui)
+        self.assertIn('"WLAN: %s %d dBm | %u.%u.%u.%u"', self.gui)
+        for api in ("now / 1000", "ESP.getFreeHeap()", "ESP.getFreePsram()"):
             self.assertIn(api, self.gui)
         self.assertIn("showing(CompanionModules::Id::System) && now - lastSystemRefresh >= 1000", self.gui)
 

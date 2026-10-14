@@ -18,22 +18,24 @@ int main() {
     std::strcpy(s.adapter, "ELM327 v1.5");
     std::strcpy(s.protocol, "CAN 11/500");
 
-    // Header: metadata line, then 14 columns; adapter text cannot break the CSV.
+    // Header: metadata line, then 15 columns; adapter text cannot break the CSV.
     char header[400];
-    size_t n = formatHeader(s, "C350 W204 M272", header, sizeof(header));
+    size_t n = formatHeader(s, "C350 W204 M272", "2026-10-14 20:43:05", header, sizeof(header));
     assert(n == std::strlen(header));
     std::puts(header);
     assert(std::strstr(header, "# Freenove companion OBD2 log") == header);
-    assert(std::strstr(header, "vehicle=C350 W204 M272; adapter=ELM327 v1.5; protocol=CAN 11/500"));
+    assert(std::strstr(header, "vehicle=C350 W204 M272; adapter=ELM327 v1.5; protocol=CAN 11/500; "
+                               "started=2026-10-14 20:43:05;"));
     const char* columns = std::strchr(header, '\n') + 1;
     assert(std::strcmp(columns,
-        "t_s,adapter_v,rpm,speed_kmh,coolant_c,intake_c,load_pct,throttle_pct,ecu_v,maf_gs,"
+        "t_s,time,adapter_v,rpm,speed_kmh,coolant_c,intake_c,load_pct,throttle_pct,ecu_v,maf_gs,"
         "stft_b1_pct,ltft_b1_pct,stft_b2_pct,ltft_b2_pct\n") == 0);
     std::strcpy(s.adapter, "ELM,327\r\nX");
-    formatHeader(s, nullptr, header, sizeof(header));
+    formatHeader(s, nullptr, "", header, sizeof(header));
     assert(std::strstr(header, "vehicle=generic; adapter=ELM 327  X;"));
+    assert(std::strstr(header, "started=unknown;"));
     assert(count(header, '\n') == 2);
-    assert(formatHeader(s, nullptr, header, 40) == 0 && header[0] == 0);
+    assert(formatHeader(s, nullptr, "", header, 40) == 0 && header[0] == 0);
 
     // Row: fresh values only; empty cells for stale/missing; fixed column count.
     s.values[Obd2Status::Rpm] = {true, 812.25f, 9000};
@@ -43,19 +45,19 @@ int main() {
     s.values[Obd2Status::ShortTrimB1] = {true, -2.34f, 9500};
     s.adapterVoltage = {true, 14.0f, 9000};
     char row[200];
-    n = formatRow(s, 10000, 2500, row, sizeof(row));
+    n = formatRow(s, 10000, 2500, "20:43:12", row, sizeof(row));
     std::puts(row);
     assert(n == std::strlen(row));
-    assert(std::strcmp(row, "7.5,14.0,812,0,,,,,14.12,,-2.3,,,\n") == 0);
-    assert(count(row, ',') == 13);
+    assert(std::strcmp(row, "7.5,20:43:12,14.0,812,0,,,,,14.12,,-2.3,,,\n") == 0);
+    assert(count(row, ',') == 14);
     // Not live: ECU columns empty, adapter voltage (no ECU needed) stays.
     s.link = Obd2Status::Link::NoEcu;
-    formatRow(s, 10000, 2500, row, sizeof(row));
-    assert(std::strcmp(row, "7.5,14.0,,,,,,,,,,,,\n") == 0);
+    formatRow(s, 10000, 2500, "", row, sizeof(row));  // clock unknown: empty cell
+    assert(std::strcmp(row, "7.5,,14.0,,,,,,,,,,,,\n") == 0);
     s.adapterVoltage.atMs = 0;  // stale adapter voltage
-    formatRow(s, 20000, 2500, row, sizeof(row));
-    assert(std::strcmp(row, "17.5,,,,,,,,,,,,,\n") == 0);
-    assert(formatRow(s, 10000, 2500, row, 8) == 0);
+    formatRow(s, 20000, 2500, nullptr, row, sizeof(row));
+    assert(std::strcmp(row, "17.5,,,,,,,,,,,,,,\n") == 0);
+    assert(formatRow(s, 10000, 2500, "", row, 8) == 0);
 
     // File names.
     assert(numberFromName("0012.csv") == 12);
