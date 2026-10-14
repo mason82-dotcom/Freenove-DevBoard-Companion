@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <string.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
@@ -8,7 +9,9 @@
 
 // LVGL 8 boots directly into the validated 320x240 GUI.
 // Rebuild with -DCOMPANION_DIAGNOSTIC_BOOT=1 for paused staged startup.
-// Serial commands 0=pause, 1=LVGL without TFT SPI, 2=normal LVGL/SPI.
+// Serial line commands diag0=pause, diag1=LVGL without TFT SPI,
+// diag2=normal LVGL/SPI. Whole lines only: a host tty that echoes the
+// firmware's own output back (digits in uptime/heap) must never switch stages.
 // No persistent settings, internet, OBD, drone, or camera actions.
 #ifndef COMPANION_HEARTBEAT_MS
 #define COMPANION_HEARTBEAT_MS 10000  // serial health line; 2000 for crash hunts
@@ -17,6 +20,15 @@
 namespace {
 uint32_t lastHeartbeatMs = 0;
 bool uiReady = false;
+char commandLine[8];
+size_t commandLength = 0;
+bool commandOverflow = false;
+
+// Returns the stage for an exact "diag0".."diag2" line, otherwise -1.
+int diagnosticCommand(const char* line, size_t length) {
+    if (length != 5 || strncmp(line, "diag", 4) != 0) return -1;
+    return line[4] >= '0' && line[4] <= '2' ? line[4] - '0' : -1;
+}
 }
 
 void setup() {
@@ -40,15 +52,22 @@ void setup() {
                       static_cast<unsigned>(CompanionUi::diagnosticStage()),
                       CompanionUi::diagnosticStage() == 2
                           ? "normal LVGL/TFT operation" : "diagnostic pause");
-        Serial.println("Optional diagnostics: 0=pause, 1=LVGL/no SPI, 2=LVGL/SPI");
+        Serial.println("Optional diagnostics (line + Enter): diag0=pause, diag1=LVGL/no SPI, diag2=LVGL/SPI");
     }
 }
 
 void loop() {
     while (Serial.available() > 0) {
         const int c = Serial.read();
-        if (c >= '0' && c <= '2' && uiReady) {
-            CompanionUi::setDiagnosticStage(static_cast<uint8_t>(c - '0'));
+        if (c == '\r' || c == '\n') {
+            const int stage = commandOverflow ? -1 : diagnosticCommand(commandLine, commandLength);
+            if (stage >= 0 && uiReady) CompanionUi::setDiagnosticStage(static_cast<uint8_t>(stage));
+            commandLength = 0;
+            commandOverflow = false;
+        } else if (commandLength < sizeof(commandLine)) {
+            commandLine[commandLength++] = static_cast<char>(c);
+        } else {
+            commandOverflow = true;
         }
     }
 

@@ -109,6 +109,14 @@ class CompanionShellTests(unittest.TestCase):
         self.assertIn("uxTaskGetStackHighWaterMark(", self.main)
         self.assertIn("Serial.available()", self.main)
 
+    def test_serial_stage_commands_need_whole_lines(self):
+        # A host tty echoing the firmware's output (digits) once switched the
+        # display into stage 1 (white screen). Single bytes must not do that.
+        self.assertNotIn("c >= '0' && c <= '2'", self.main)
+        self.assertIn('if (length != 5 || strncmp(line, "diag", 4) != 0) return -1;', self.main)
+        self.assertIn("if (c == '\\r' || c == '\\n')", self.main)
+        self.assertIn("commandOverflow ? -1 : diagnosticCommand(", self.main)
+
     def test_no_transport_or_control_in_shell(self):
         source = "\n".join((ROOT / "src" / part).read_text(encoding="utf-8")
                            for part in ("main.cpp", "BoardTouch.cpp", "CompanionUi.cpp"))

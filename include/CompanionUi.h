@@ -10,6 +10,7 @@ bool begin(bool touchPresent);
 
 // Optional, non-persistent diagnostics:
 // 0: pause LVGL; 1: LVGL rendering without TFT SPI; 2: normal GUI/SPI.
+// Serial: whole lines diag0 / diag1 / diag2 (see main.cpp).
 void setDiagnosticStage(uint8_t stage);
 uint8_t diagnosticStage();
 void poll();

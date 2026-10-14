@@ -85,7 +85,7 @@ LVGL 9 no longer uses LVGL 8's `lv_disp_drv_t`, `lv_disp_draw_buf_t`, and `lv_in
 
 LVGL 9 internally owns the created display/input objects, eliminating the invalid stack-lifetime pattern found in the LVGL 8 prototype. The partial 320 × 20 × 2 byte RGB565 draw buffer stays static and 4-byte aligned in internal RAM. The UI remains 320 × 240, CFG1 rotation 1, with the previously validated transformation `x=rawY; y=239-rawX`.
 
-The staged hardware test **passed stages 0, 1 and 2** with real touch navigation. A new follow-up change starts directly at stage 2 for normal operation; a paused diagnostic boot is opt-in at compile time using `COMPANION_DIAGNOSTIC_BOOT=1`. The UART commands 0/1/2 remain available. No Wi-Fi, vehicle, drone, sound or camera control is enabled.
+The staged hardware test **passed stages 0, 1 and 2** with real touch navigation. A new follow-up change starts directly at stage 2 for normal operation; a paused diagnostic boot is opt-in at compile time using `COMPANION_DIAGNOSTIC_BOOT=1`. The UART commands remain available as whole lines `diag0`/`diag1`/`diag2` (single bytes were replaced on 2026-10-14, see LVGL8-TEST-REGRESSION.md). No Wi-Fi, vehicle, drone, sound or camera control is enabled.
 
 ## Safe Raspberry Pi test worktree
 

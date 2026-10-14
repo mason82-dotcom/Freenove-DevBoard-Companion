@@ -138,3 +138,13 @@ Geflasht auf `/dev/ttyACM0` (SER `58FC003021`) nach Freigabe durch den Nutzer; U
 - Board-Ergebnis: Leerlauf-Heap 77 KB (vorher 33 KB), Hermes `http=200 ok=1` über 95 s ohne Fehler; Einbrüche auf ~35 KB nur während eines TLS-Abrufs. Tests: 56 bestanden.
 - Audiowiedergabe mit 12 × 256 DMA-Frames vom Benutzer am Board bestätigt: Webradio läuft ohne Aussetzer.
 - Seitenwechsel zwischen den Modulen während der Wiedergabe vom Benutzer bestätigt: keine Aussetzer, keine Probleme.
+
+
+## Weißes Display beim seriellen Mitlesen (14.10.2026)
+
+- Symptom: Sobald der Pi den seriellen Port öffnete, blieb das Display weiß bzw. stand still; die Firmware lief weiter (Heartbeats, Hermes OK).
+- Ursache 1 (Reset): Ein Mitlese-Skript setzte nach dem Öffnen `DTR=False, RTS=False` nacheinander; der Zwischenzustand DTR=0/RTS=1 löst über die Auto-Reset-Schaltung EN aus (`rst:0x1 POWERON`). Abhilfe auf dem Host: Leitungen nicht anfassen (pyserial-Standard, beide bleiben gesetzt). Mit `serial.Serial(port, 115200)` kein Reset, Uptime läuft durch.
+- Ursache 2 (weißes Bild): Die Firmware nahm einzelne Bytes `0`/`1`/`2` als Diagnosestufe an. Ein frisch eingestecktes `/dev/ttyACM0` hat unter Linux `echo` an, der Treiber spiegelt die Ausgabe der Firmware (Ziffern in `uptime=…`) zurück → Stufe 0 (Pause) oder 1 (kein TFT-SPI). Am Board beobachtet: `DIAG STAGE 1: LVGL render; TFT SPI bypassed` ohne Eingabe.
+- Fix: `src/main.cpp` nimmt nur noch ganze Zeilen `diag0`/`diag1`/`diag2` (+ Enter) an; längere Zeilen werden verworfen. Test `test_serial_stage_commands_need_whole_lines`.
+- Board-Ergebnis: Port mit `stty echo icanon` und `cat` 25 s geöffnet, Heartbeat wurde zurückgespiegelt, Stufe blieb 2, kein Reset. Tests: 57 bestanden.
+- `TFT_DC` liegt in CFG1 auf GPIO0 (Boot-Pin); unverändert, CFG1 bleibt fest.
