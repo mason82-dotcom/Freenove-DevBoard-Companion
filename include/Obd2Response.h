@@ -66,8 +66,27 @@ inline bool contains(const char* text, const char* word) {
     return false;
 }
 
+// First reply line that is not an echo ("AT..."), "OK", "?" or empty.
+// Clones do not always answer ATZ with "ELM327 vX.Y" (Kingbolen Wi-Fi,
+// 2026-10-14: adapter id was not recognized), so this is the fallback name.
+inline const char* firstContentLine(const char* reply) {
+    for (size_t i = 0; reply[i] != '\0' && i < 512;) {
+        while (reply[i] == '\r' || reply[i] == '\n' || reply[i] == ' ') ++i;
+        const char* line = reply + i;
+        size_t n = 0;
+        while (line[n] && line[n] != '\r' && line[n] != '\n') ++n;
+        const bool echo = n >= 2 && line[0] == 'A' && line[1] == 'T';
+        const bool status = (n == 2 && line[0] == 'O' && line[1] == 'K') || (n == 1 && line[0] == '?');
+        if (n > 0 && !echo && !status) return line;
+        if (n == 0) return nullptr;
+        i += n;
+    }
+    return nullptr;
+}
+
 // Copies the "ELM327 vX.Y" identification from an ATZ reply, without any
-// vendor suffix in parentheses, truncated to fit one display line.
+// vendor suffix in parentheses, truncated to fit one display line; other
+// adapters: their first content line (printable characters only).
 constexpr size_t kAdapterIdMax = 15;
 inline bool adapterId(const char* reply, char* out, size_t capacity) {
     if (!out || capacity == 0) return false;
@@ -80,11 +99,12 @@ inline bool adapterId(const char* reply, char* out, size_t capacity) {
         while (kTag[k] != '\0' && reply[i + k] == kTag[k]) ++k;
         if (kTag[k] == '\0') id = reply + i;
     }
+    if (!id) id = firstContentLine(reply);
     if (!id) return false;
     size_t n = 0;
     while (id[n] && id[n] != '\r' && id[n] != '\n' && id[n] != '(' &&
            n < kAdapterIdMax && n + 1 < capacity) {
-        out[n] = id[n];
+        out[n] = (id[n] >= ' ' && id[n] < 127) ? id[n] : '?';
         ++n;
     }
     while (n > 0 && out[n - 1] == ' ') --n;

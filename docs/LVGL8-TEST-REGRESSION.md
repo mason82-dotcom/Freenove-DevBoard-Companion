@@ -194,3 +194,10 @@ Geflasht auf `/dev/ttyACM0` (SER `58FC003021`) nach Freigabe durch den Nutzer; U
 - Startseite 4 × 2: neue Platzhalter „Kids 4in1“ und „Frei“.
 - **Fehler und Fix:** Die erste System-Seite stürzte beim Öffnen ab (`Guru Meditation Error: LoadProhibited`, Backtrace `lv_label_set_text_fmt` ← `updateSystemDetails`). LVGLs printf hat keine Float-Unterstützung (`LV_SPRINTF_USE_FLOAT 0`); `PSRAM %.1f MB` verschob alle folgenden Argumente, ein `%s` las einen Nullzeiger, das Board startete neu (USB-Neuanmeldung). Fix: `snprintf` + `lv_label_set_text`. Neuer Test verbietet Float-Formate in `lv_label_set_text_fmt` (schlägt gegen den fehlerhaften Stand an). Tests: 74 bestanden.
 - Board nach dem Fix (Fotos des Benutzers): System- und Hermes-Seite vollständig, alle Zeilen im Rahmen, kein Absturz.
+
+
+## OBD2: erster Test im Fahrzeug (14.10.2026)
+
+- Mercedes C 350 W204 (M272), Kingbolen-WLAN-ELM327 (`WiFi_OBDII`), Stand, Log `/obd2/0003.csv` per FTP: Start 21:13:31, 59 Zeilen in 58,7 s, alle 15 Spalten. Protokoll **CAN 11/500** (automatische Suche). Bordspannung (ATRV) 11,2–11,3 V bei Zündung an / Motor aus, 13,0 V nach dem Start. Drehzahl 0 → 1035 → Leerlauf ~710 rpm, Tempo 0, Kühlmittel 62–63 °C, Ansaugluft 47–51 °C, Last bis 30,6 %, Drossel 12–15 %, MAF ~5 g/s. LTFT Bank 1 +12,5 %, Bank 2 +4,7 % (kalter Motor, STFT 0 = vermutlich noch keine Lambdaregelung; nur ein Messwert, keine Diagnose).
+- Befund 1: `adapter=?` – der Kingbolen antwortet auf ATZ nicht mit „ELM327 vX.Y“. Fix: erste Inhaltszeile als Name (Echo/OK/? ausgeschlossen, nur druckbare Zeichen) und rohe ATZ-Antwort im seriellen Log (`OBD2: ATZ reply "..." -> id "..."`).
+- Befund 2: langsame PIDs nur in 35–44 von 59 Zeilen gefüllt – das echte Steuergerät antwortet langsamer als der Simulator, jeder Round-Robin-Wert kam nur alle 4–6 s, die gemeinsame 5-s-Grenze ließ Lücken (auch „--“ im Display). Fix: Drehzahl/Tempo 3 s, übrige PIDs 15 s (`Obd2Status::staleAfterMs`). Tests: 74 bestanden.

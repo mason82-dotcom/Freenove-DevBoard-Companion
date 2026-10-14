@@ -40,7 +40,7 @@ int main() {
     // Row: fresh values only; empty cells for stale/missing; fixed column count.
     s.values[Obd2Status::Rpm] = {true, 812.25f, 9000};
     s.values[Obd2Status::Speed] = {true, 0.0f, 9000};
-    s.values[Obd2Status::Coolant] = {true, 88.0f, 3000};       // stale at t=10000
+    s.values[Obd2Status::Coolant] = {true, 88.0f, 3000};       // slow PID: 7 s is still fresh
     s.values[Obd2Status::Voltage] = {true, 14.12f, 9500};
     s.values[Obd2Status::ShortTrimB1] = {true, -2.34f, 9500};
     s.adapterVoltage = {true, 14.0f, 9000};
@@ -48,8 +48,13 @@ int main() {
     n = formatRow(s, 10000, 2500, "20:43:12", row, sizeof(row));
     std::puts(row);
     assert(n == std::strlen(row));
-    assert(std::strcmp(row, "7.5,20:43:12,14.0,812,0,,,,,14.12,,-2.3,,,\n") == 0);
+    assert(std::strcmp(row, "7.5,20:43:12,14.0,812,0,88,,,,14.12,,-2.3,,,\n") == 0);
     assert(count(row, ',') == 14);
+    // RPM is stale after 3 s, slow PIDs after 15 s.
+    formatRow(s, 12001, 2500, "", row, sizeof(row));
+    assert(std::strcmp(row, "9.5,,14.0,,,88,,,,14.12,,-2.3,,,\n") == 0);
+    formatRow(s, 18001, 2500, "", row, sizeof(row));
+    assert(std::strcmp(row, "15.5,,14.0,,,,,,,14.12,,-2.3,,,\n") == 0);  // coolant 15.001 s old
     // Not live: ECU columns empty, adapter voltage (no ECU needed) stays.
     s.link = Obd2Status::Link::NoEcu;
     formatRow(s, 10000, 2500, "", row, sizeof(row));  // clock unknown: empty cell

@@ -97,7 +97,7 @@ size_t formatRow(const Obd2Status::Snapshot& s, uint32_t nowMs, uint32_t startMs
     for (const Column& c : kColumns) {
         if (!append(out, capacity, len, ",")) return 0;
         const auto& v = s.values[c.pid];
-        if (live && v.valid && static_cast<uint32_t>(nowMs - v.atMs) <= Obd2Status::kValueStaleMs) {
+        if (live && v.valid && static_cast<uint32_t>(nowMs - v.atMs) <= Obd2Status::staleAfterMs(c.pid)) {
             snprintf(cell, sizeof(cell), c.format, static_cast<double>(v.value));
             if (!append(out, capacity, len, cell)) return 0;
         }

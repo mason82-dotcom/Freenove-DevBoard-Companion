@@ -92,7 +92,13 @@ int main() {
     assert(adapterId("ATE0 echo\rELM327 v1.4b\r", id, sizeof(id)) &&
            std::strcmp(id, "ELM327 v1.4b") == 0);              // earlier 'E' ignored
     assert(!adapterId("OK\r", id, sizeof(id)) && id[0] == '\0');
-    assert(!adapterId("ELM32", id, sizeof(id)));
+    // Clones without "ELM327": first content line, never echo/OK/?.
+    assert(adapterId("ELM32", id, sizeof(id)) && std::strcmp(id, "ELM32") == 0);
+    assert(adapterId("ATZ\r\rOBDII v1.5\r\r", id, sizeof(id)) && std::strcmp(id, "OBDII v1.5") == 0);
+    assert(adapterId("\r\rV-LINK\r", id, sizeof(id)) && std::strcmp(id, "V-LINK") == 0);
+    assert(!adapterId("ATZ\r\r", id, sizeof(id)) && id[0] == '\0');
+    assert(!adapterId("?\r", id, sizeof(id)) && !adapterId("", id, sizeof(id)));
+    assert(adapterId("OBD\x01X", id, sizeof(id)) && std::strcmp(id, "OBD?X") == 0);
     char small[4];
     assert(adapterId("ELM327 v1.5", small, sizeof(small)) && std::strcmp(small, "ELM") == 0);
 
@@ -118,7 +124,7 @@ int main() {
     s.values[Obd2Status::ShortTrimB2] = {true, -2.3f, 1000};
     s.supported[Obd2Status::LongTrimB2] = false;
     s.tx = 175;
-    Obd2Status::format(s, 6000, text, sizeof(text));
+    Obd2Status::format(s, 3000, text, sizeof(text));
     const char* live =
         "ELM327: verbunden | ELM327 v1.5\n"
         "Drehzahl: 1234 rpm | Tempo: 42 km/h\n"
@@ -145,8 +151,11 @@ int main() {
     s.adapterVoltage = {};
     s.link = Obd2Status::Link::Live;
 
-    Obd2Status::format(s, 6001, text, sizeof(text));  // stale -> dashes
+    Obd2Status::format(s, 4001, text, sizeof(text));  // RPM/speed stale after 3 s
     assert(std::strstr(text, "Drehzahl: -- | Tempo: --") != nullptr);
+    assert(std::strstr(text, "Kuehlmittel: 90 C") != nullptr);  // slow PID: 15 s
+    Obd2Status::format(s, 16001, text, sizeof(text));
+    assert(std::strstr(text, "Kuehlmittel: -- |") != nullptr);
     s.link = Obd2Status::Link::Error;                  // never live values on error
     Obd2Status::format(s, 1000, text, sizeof(text));
     assert(std::strstr(text, "ELM327: Fehler, neuer Versuch") == text);

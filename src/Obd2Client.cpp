@@ -141,6 +141,13 @@ bool initializeAdapter(Snapshot& s) {
     setLink(s, Link::Initializing);
     if (!countFailure(exchange(Command::AdapterReset, kResetTimeoutMs, s), s)) return false;
     Obd2Response::adapterId(reply, s.adapter, sizeof(s.adapter));
+    // Raw ATZ reply (CR/LF as '|', non-printables as '.') for clone diagnosis.
+    char raw[64];
+    size_t n = 0;
+    for (const char* c = reply; *c && n + 1 < sizeof(raw); ++c)
+        raw[n++] = (*c == '\r' || *c == '\n') ? '|' : (*c >= ' ' && *c < 127) ? *c : '.';
+    raw[n] = '\0';
+    Serial.printf("OBD2: ATZ reply \"%s\" -> id \"%s\"\n", raw, s.adapter);
     for (Command c : {Command::AdapterEchoOff, Command::AdapterLinesOff,
                       Command::AdapterSpacesOff, Command::AdapterHeadersOff,
                       Command::AdapterAutoProtocol}) {

@@ -23,7 +23,7 @@ void value(char* out, size_t cap, const Snapshot& s, Pid pid, uint32_t now,
            const char* fmt) {
     const Value& v = s.values[pid];
     const bool fresh = s.link == Link::Live && v.valid &&
-                       static_cast<uint32_t>(now - v.atMs) <= kValueStaleMs;
+                       static_cast<uint32_t>(now - v.atMs) <= staleAfterMs(pid);
     if (s.supportKnown && !s.supported[pid]) snprintf(out, cap, "n/v");
     else if (fresh) snprintf(out, cap, fmt, static_cast<double>(v.value));
     else snprintf(out, cap, "--");
