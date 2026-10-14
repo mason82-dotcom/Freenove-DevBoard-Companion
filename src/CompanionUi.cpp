@@ -5,6 +5,7 @@
 #include "BoardTouch.h"
 #include "CompanionModules.h"
 #include "CompanionUi.h"
+#include "DroneTelemetry.h"
 #include "FtpServer.h"
 #include "HermesStatus.h"
 #include "SdCard.h"
@@ -49,6 +50,8 @@ lv_obj_t* hermesLabel = nullptr;
 uint32_t lastHermesRefresh = 0;
 lv_obj_t* obd2Label = nullptr;
 uint32_t lastObd2Refresh = 0;
+lv_obj_t* droneLabel = nullptr;
+uint32_t lastDroneRefresh = 0;
 lv_obj_t* ftpButtonLabel = nullptr;
 lv_obj_t* radioStation = nullptr;
 lv_obj_t* radioTitle = nullptr;
@@ -148,6 +151,7 @@ void makeScreenBlank() {
     pulsOxSeries = nullptr;
     hermesLabel = nullptr;
     obd2Label = nullptr;
+    droneLabel = nullptr;
     radioStation = radioTitle = radioStatus = radioVolume = radioPlayLabel = nullptr;
     ftpButtonLabel = nullptr;
 }
@@ -314,6 +318,13 @@ void updateObd2Details() {
     lv_label_set_text(obd2Label, text);
 }
 
+void updateDroneDetails() {
+    if (!droneLabel || !showing(CompanionModules::Id::Drone)) return;
+    char text[320];
+    DroneTelemetry::format(DroneTelemetry::read(), millis(), text, sizeof(text));
+    lv_label_set_text(droneLabel, text);
+}
+
 void updatePulsOxWave() {
     if (!pulsOxChart || !pulsOxSeries) return;
     const auto sample = PulsOx::read();
@@ -360,6 +371,7 @@ void showModule(uint8_t page) {
     // Panel content area (theme padding 10 px): about 278 x 122 px.
     if (module.id != CompanionModules::Id::PulsOx &&
         module.id != CompanionModules::Id::Obd2 &&
+        module.id != CompanionModules::Id::Drone &&
         module.id != CompanionModules::Id::Webradio &&
         module.id != CompanionModules::Id::System) {
         newLabel(panel, module.id == CompanionModules::Id::Hermes
@@ -394,6 +406,9 @@ void showModule(uint8_t page) {
     } else if (module.id == CompanionModules::Id::Obd2) {
         obd2Label = newLabel(panel, "ELM327 wird verbunden ...", 9, 0, 0x81DDBC);
         updateObd2Details();
+    } else if (module.id == CompanionModules::Id::Drone) {
+        droneLabel = newLabel(panel, "AeroNexus wird verbunden ...", 9, 0, 0x81DDBC);
+        updateDroneDetails();
     } else if (module.id == CompanionModules::Id::System) {
         statusLabel = newLabel(panel, "", 9, 0, 0x81DDBC);
         lv_obj_t* ftp = makeButton(root, 222, 7, 90, 28, "FTP: aus", 0x25415D);
@@ -428,6 +443,8 @@ void showModule(uint8_t page) {
         newLabel(root, Obd2Status::vehicleProfile()
                            ? "Nur Lesen | nur im Stillstand bedienen"
                            : "Nur Lesen (Mode 01) | Laborprofil", 10, 212, 0x8EA8C1);
+    } else if (module.id == CompanionModules::Id::Drone) {
+        newLabel(root, "Nur Lesen | Telemetrie von AeroNexus", 10, 212, 0x8EA8C1);
     } else {
         newLabel(root, "Nur lokale Anzeige | CFG1 320x240", 10, 212, 0x8EA8C1);
     }
@@ -482,6 +499,7 @@ bool begin(bool touchPresent) {
     Webradio::begin();
     HermesStatus::begin();
     Obd2Status::begin();
+    DroneTelemetry::begin();
     lastTick = millis();
     lastSystemRefresh = lastTick;
     shownPage = 0;
@@ -529,6 +547,7 @@ void poll() {
     if (requestedPage != shownPage) {
         if (showing(CompanionModules::Id::PulsOx)) PulsOx::requestActive(false);
         if (showing(CompanionModules::Id::Obd2)) Obd2Status::requestActive(false);
+        if (showing(CompanionModules::Id::Drone)) DroneTelemetry::requestActive(false);
         shownPage = requestedPage;
         if (shownPage == 0) {
             Serial.println("UI NAV: Home");
@@ -539,6 +558,7 @@ void poll() {
             showModule(shownPage);
             if (showing(CompanionModules::Id::PulsOx)) PulsOx::requestActive(true);
             if (showing(CompanionModules::Id::Obd2)) Obd2Status::requestActive(true);
+            if (showing(CompanionModules::Id::Drone)) DroneTelemetry::requestActive(true);
         }
     }
 
@@ -561,6 +581,10 @@ void poll() {
     if (showing(CompanionModules::Id::Obd2) && now - lastObd2Refresh >= 500) {
         lastObd2Refresh = now;
         updateObd2Details();
+    }
+    if (showing(CompanionModules::Id::Drone) && now - lastDroneRefresh >= 500) {
+        lastDroneRefresh = now;
+        updateDroneDetails();
     }
     if (showing(CompanionModules::Id::Hermes) && now - lastHermesRefresh >= 1000) {
         lastHermesRefresh = now;

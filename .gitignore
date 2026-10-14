@@ -14,3 +14,5 @@ include/HermesLocalConfig.h
 include/Obd2LocalConfig.h
 # Local FTP credentials. Template stays tracked.
 include/FtpLocalConfig.h
+# Local AeroNexus read-only telemetry account. Template stays tracked.
+include/DroneLocalConfig.h
