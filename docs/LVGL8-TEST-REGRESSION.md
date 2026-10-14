@@ -176,3 +176,11 @@ Geflasht auf `/dev/ttyACM0` (SER `58FC003021`) nach Freigabe durch den Nutzer; U
 - Simulator: `--flight` spielt alle 60 s einen Flug (Boden, Start, manuell, Akku 30 % → RTH, Landung), `--weak-link` lässt die Funkqualität 5 → 1 → 5 laufen. Erste Fassung ließ den Akku am Boden weiter sinken (13 %, rot am Boden); jetzt bleibt er nach der Landung stehen.
 - Board (Fotos des Benutzers): gelb „Akku 29 % - Rueckkehr empfohlen“ im manuellen Flug, rot „Akku 13 % - Landung noetig“, rot „Drohne sendet nicht mehr (42 s)“ nach Abbruch des Simulators im Flug, Statistik danach erhalten. Log: `ignored=0`, Stack 3300 B frei. Tests: 68 bestanden.
 - Abnahme nach Kürzung der Flug-Zeile und „Modus: keine Daten“: vom Benutzer am Board bestätigt („passt“).
+
+
+## OBD2: Vorbereitung Kingbolen-WLAN-ELM327 und SD-Logging (14.10.2026)
+
+- Adapter: Kingbolen ELM327 WiFi, eigenes offenes WLAN `WiFi_OBDII` (vom Benutzer abgelesen), erwartet `192.168.0.10:35000`. Lokale `include/Obd2LocalConfig.h` (git-ignoriert) auf Fahrzeugprofil mit `MercedesC350W204M272` umgestellt. **Noch nicht am Fahrzeug getestet.**
+- Neue Adapterabfragen in der Allowlist (nichts erreicht den Fahrzeugbus): `ATRV` (Bordspannung an Pin 16, auch bei Zündung aus; ersetzt eine fehlende Steuergerätespannung in der Anzeige) und `ATDPN` (erkanntes Protokoll, Kopfzeile `ELM327 v1.5 | CAN 11/500`). Am Board gegen den Laborsimulator: `ELM327 v1.5, protocol CAN 11/500, 13.9 V`, 0 Timeouts, 0 Fehler, 0 Policy-Verletzungen.
+- SD-Logging: `/obd2/NNNN.csv`, eine Datei pro Besuch der OBD2-Seite ab dem ersten Live-Wert, 1 Zeile pro Sekunde (fester Takt), Kopfzeile mit Fahrzeug/Adapter/Protokoll, 14 Spalten, veraltete/nicht unterstützte Werte leer. Zeilen werden im PSRAM gesammelt und alle 10 Zeilen als ein Block geschrieben (weniger FAT-Zugriffe, höchstens 10 s Verlust bei Stromausfall). Stopp bei < 64 MB frei. Fußzeile `Nur Lesen | Stillstand | Log 0003 13 KB`. Abholbar per FTP.
+- Board (Laborprofil + Simulator): `0002.csv` per FTP geholt: 47 Zeilen, 14 Spalten in jeder Zeile, Abstand 1,0–1,3 s (danach auf festen 1-s-Takt umgestellt), Datei beim Verlassen sauber geschlossen (`47 rows, 3080 bytes`). OBD2-Worker-Stack mit SD-Schreiben 2688 B frei → auf 7 KB erhöht. Tests: 70 bestanden.

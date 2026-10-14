@@ -9,6 +9,7 @@
 #include "FtpServer.h"
 #include "HermesStatus.h"
 #include "SdCard.h"
+#include "Obd2Log.h"
 #include "Obd2Status.h"
 #include "PulsOxSensor.h"
 #include "TouchTransform.h"
@@ -49,6 +50,7 @@ uint32_t lastPulsOxWave = 0;
 lv_obj_t* hermesLabel = nullptr;
 uint32_t lastHermesRefresh = 0;
 lv_obj_t* obd2Label = nullptr;
+lv_obj_t* obd2Footer = nullptr;
 uint32_t lastObd2Refresh = 0;
 lv_obj_t* droneLabel = nullptr;
 lv_obj_t* droneFooter = nullptr;
@@ -154,6 +156,7 @@ void makeScreenBlank() {
     pulsOxSeries = nullptr;
     hermesLabel = nullptr;
     obd2Label = nullptr;
+    obd2Footer = nullptr;
     droneLabel = nullptr;
     droneFooter = nullptr;
     radioStation = radioTitle = radioStatus = radioVolume = radioPlayLabel = nullptr;
@@ -320,6 +323,11 @@ void updateObd2Details() {
     char text[320];
     Obd2Status::format(Obd2Status::read(), millis(), text, sizeof(text));
     lv_label_set_text(obd2Label, text);
+    if (obd2Footer) {
+        char footer[64];
+        Obd2Log::footer(Obd2Log::status(), Obd2Status::vehicleProfile(), footer, sizeof(footer));
+        setTextIfChanged(obd2Footer, footer);
+    }
 }
 
 void updateDroneDetails() {
@@ -457,10 +465,11 @@ void showModule(uint8_t page) {
     if (module.id == CompanionModules::Id::Webradio) {
         newLabel(root, "Stream laeuft im Hintergrund weiter", 10, 212, 0x8EA8C1);
     } else if (module.id == CompanionModules::Id::Obd2) {
-        // Seven data rows fill the panel; the read-only notice is the footer.
-        newLabel(root, Obd2Status::vehicleProfile()
-                           ? "Nur Lesen | nur im Stillstand bedienen"
-                           : "Nur Lesen (Mode 01) | Laborprofil", 10, 212, 0x8EA8C1);
+        // Seven data rows fill the panel; the footer carries the read-only
+        // notice and the SD log state.
+        char footer[64];
+        Obd2Log::footer(Obd2Log::status(), Obd2Status::vehicleProfile(), footer, sizeof(footer));
+        obd2Footer = newLabel(root, footer, 10, 212, 0x8EA8C1);
     } else if (module.id == CompanionModules::Id::Drone) {
         droneFooter = newLabel(root, kDroneFooter, 10, 212, 0x8EA8C1);
         droneAlertShown = DroneTelemetry::Alert::None;

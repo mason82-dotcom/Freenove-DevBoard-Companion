@@ -1,5 +1,6 @@
 #include "Obd2Status.h"
 #include "Obd2Policy.h"
+#include "Obd2Log.h"
 #include "Obd2Response.h"
 #include "VehicleProfiles.h"
 #include "WifiLink.h"
@@ -239,6 +240,8 @@ void endSession(Snapshot& s, Link link) {
     for (auto& v : s.values) v = Obd2Status::Value{};
     s.supportKnown = false;
     s.protocol[0] = '\0';  // the adapter voltage stays: it does not need an ECU
+    // One log file per page visit: reconnects continue it, leaving ends it.
+    if (link == Link::Idle) Obd2Log::close();
     setLink(s, link);
     publish(s);
     // Leaving the page hands the station back to the home WLAN (Hermes).
@@ -286,7 +289,15 @@ void task(void*) {
         setLink(s, Link::Live);
         uint8_t slowIndex = 0, failures = 0;
         uint32_t lastLog = millis();
+        uint32_t lastRow = millis() - Obd2Log::kRowIntervalMs;
         while (pollOnce(s, slowIndex, failures)) {
+            if (static_cast<uint32_t>(millis() - lastRow) >= Obd2Log::kRowIntervalMs) {
+                // Fixed 1 s grid; after a long stall resync instead of bursting.
+                lastRow += Obd2Log::kRowIntervalMs;
+                if (static_cast<uint32_t>(millis() - lastRow) >= Obd2Log::kRowIntervalMs)
+                    lastRow = millis();
+                Obd2Log::write(s, Obd2Status::vehicleTitle());
+            }
             if (static_cast<uint32_t>(millis() - lastLog) >= 10000) {
                 lastLog = millis();
                 Serial.printf("OBD2: live tx=%lu timeouts=%lu errors=%lu stack_free=%u\n",
@@ -313,7 +324,8 @@ void begin() {
     s.vehicleProfile = kVehicle;
     publish(s);
     // Created once and parked: no adapter traffic until the page is opened.
-    if (xTaskCreatePinnedToCore(task, "obd2", 6144, nullptr, 1, &worker, 0) != pdPASS)
+    // 7 KB: the SD log adds FATFS calls (measured 2.7 KB free with 6 KB).
+    if (xTaskCreatePinnedToCore(task, "obd2", 7168, nullptr, 1, &worker, 0) != pdPASS)
         worker = nullptr;
 #endif
 }
