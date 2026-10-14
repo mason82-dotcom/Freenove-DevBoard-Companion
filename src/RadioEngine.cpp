@@ -27,6 +27,12 @@ constexpr uint32_t kConnectTimeoutMs = 15000;  // no audio within this -> failed
 constexpr uint32_t kTaskStack = 8192;
 constexpr UBaseType_t kTaskPriority = 2;
 constexpr BaseType_t kTaskCore = 1;
+// I2S DMA buffers must live in internal RAM. The library default (32 x 256
+// frames x 8 bytes = 64 KB) left too little internal heap for the Hermes TLS
+// handshake. 12 x 256 frames = 24 KB still holds ~70 ms at 44.1 kHz; network
+// jitter is absorbed by the stream buffer in PSRAM, not by DMA.
+constexpr uint16_t kDmaDescNum = 12;
+constexpr uint16_t kDmaFrameNum = 256;
 
 QueueHandle_t commands = nullptr;
 QueueHandle_t events = nullptr;
@@ -168,6 +174,9 @@ bool begin() {
     }
     Audio::audio_info_callback = onAudioEvent;
     audio.setConnectionTimeout(3000, 5000);  // HTTP 3 s, HTTPS 5 s
+    // Read by the I2S channel setup inside setPinout(): set before it.
+    audio.settings.DMA_DESC_NUM = kDmaDescNum;
+    audio.settings.DMA_FRAME_NUM = kDmaFrameNum;
     const bool pins = audio.setPinout(BoardPins::kAudioBclk, BoardPins::kAudioWs,
                                       BoardPins::kAudioData);
     if (xTaskCreatePinnedToCore(task, "radio", kTaskStack, nullptr, kTaskPriority,

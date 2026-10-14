@@ -42,6 +42,18 @@ class WebradioTests(unittest.TestCase):
         self.assertIn("if (e.gen != gen) continue;", self.player)
         self.assertIn("kConnectTimeoutMs = 15000", self.engine)
 
+    def test_i2s_dma_stays_small_in_internal_ram(self):
+        # The library default (32 x 256) starves the Hermes TLS handshake.
+        desc = int(re.search(r"kDmaDescNum = (\d+);", self.engine).group(1))
+        frames = int(re.search(r"kDmaFrameNum = (\d+);", self.engine).group(1))
+        self.assertLessEqual(desc * frames * 8, 24 * 1024)
+        self.assertGreaterEqual(desc * frames, 2048)  # >= ~46 ms at 44.1 kHz
+        begin = self.engine.split("bool begin()", 1)[1]
+        self.assertLess(begin.index("audio.settings.DMA_DESC_NUM = kDmaDescNum;"),
+                        begin.index("audio.setPinout("))
+        self.assertLess(begin.index("audio.settings.DMA_FRAME_NUM = kDmaFrameNum;"),
+                        begin.index("audio.setPinout("))
+
     def test_no_server_storage_or_recording(self):
         for name in ("src/RadioEngine.cpp", "src/WebradioPlayer.cpp", "src/WebradioText.cpp"):
             text = read(name)

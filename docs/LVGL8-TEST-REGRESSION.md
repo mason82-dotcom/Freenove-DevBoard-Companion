@@ -127,3 +127,13 @@ Geflasht auf `/dev/ttyACM0` (SER `58FC003021`) nach Freigabe durch den Nutzer; U
 - System-Seite: 7 Zeilen inkl. „SD: x / y GB frei“ und FTP-Status (Adresse, Restzeit, verbundener Client), Taste „FTP: an/aus“.
 - Tests: 55 bestanden. Build ohne FTP-Konfiguration und mit temporärer Platzhalter-Konfiguration (danach gelöscht): **SUCCESS** (RAM 44,1 %, Flash 74,4 %).
 - **Nicht auf dem Board geprüft**: weder SD-Mount noch FTP-Übertragung.
+- Hardware-Nachtrag (14.10.2026): Flash auf FNK0086 (`usb-1a86_USB_Single_Serial_58FC003021-if00`). SD-Mount bestätigt (SDHC, 3716 MB); FTP-Login und -Verbindung vom Benutzer bestätigt.
+
+
+## Hermes-TLS: interner Heap durch I2S-DMA erschöpft (14.10.2026)
+
+- Symptom nach dem Webradio-Port: jeder Hermes-Abruf scheiterte mit `SSL - Memory allocation failed (-32512)`, freier interner Heap ~33 KB, größter Block ~20 KB. mbedTLS allokiert in diesem Framework nur intern (`CONFIG_MBEDTLS_INTERNAL_MEM_ALLOC`).
+- Messung (temporäre Boot-Ausgaben, wieder entfernt), freier interner Heap nach jedem Schritt: Start 209 KB → WLAN 148 KB → FTP 141 KB → **Webradio 55 KB** → Hermes 42 KB → OBD2 35 KB. Ursache: `ESP32-audioI2S` legt standardmäßig 32 × 256 Frames × 8 Byte = 64 KB I2S-DMA-Puffer an, dazu kommen 8 KB Task-Stack.
+- Fix: `src/RadioEngine.cpp` setzt vor `setPinout()` `DMA_DESC_NUM = 12`, `DMA_FRAME_NUM = 256` (24 KB, ~70 ms bei 44,1 kHz). Netzwerk-Jitter fängt der Stream-Puffer im PSRAM ab. Test `test_i2s_dma_stays_small_in_internal_ram`.
+- Board-Ergebnis: Leerlauf-Heap 77 KB (vorher 33 KB), Hermes `http=200 ok=1` über 95 s ohne Fehler; Einbrüche auf ~35 KB nur während eines TLS-Abrufs. Tests: 56 bestanden.
+- **Offen**: Audiowiedergabe mit dem kleineren DMA-Puffer noch nicht angehört (Aussetzer prüfen).
