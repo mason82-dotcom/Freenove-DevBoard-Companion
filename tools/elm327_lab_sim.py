@@ -17,6 +17,8 @@ import time
 ADAPTER = {
     "ATZ": "\r\rELM327 v1.5 (LAB SIM)",
     "ATE0": "OK", "ATL0": "OK", "ATS0": "OK", "ATH0": "OK", "ATSP0": "OK",
+    "ATRV": "13.9V",   # adapter-measured voltage at OBD pin 16
+    "ATDPN": "A6",     # automatic search found ISO 15765-4 CAN 11 bit 500 kbit/s
 }
 # 0100: 04-09 0C 0D 0F 10 11 20 supported; 0120: 40; 0140: 42.
 STATIC = {

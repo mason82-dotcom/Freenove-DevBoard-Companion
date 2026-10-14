@@ -68,6 +68,20 @@ int main() {
     const uint8_t maf[] = {0x01, 0xF4};
     assert(decodeValue(0x10, maf, v) && v == 5.0f);
 
+    // ATRV / ATDPN (adapter queries, clone spellings).
+    float volts = 0;
+    assert(adapterVoltage("12.6V", volts) && std::fabs(volts - 12.6f) < 1e-4f);
+    assert(adapterVoltage("\r14.12 V\r", volts) && std::fabs(volts - 14.12f) < 1e-4f);
+    assert(adapterVoltage("9v", volts) && volts == 9.0f);
+    assert(!adapterVoltage("?", volts) && !adapterVoltage("12.V", volts));
+    assert(!adapterVoltage("V", volts) && !adapterVoltage("99.9V", volts));
+    assert(!adapterVoltage("12.6", volts));  // unit required
+    assert(std::strcmp(protocolName("A6"), "CAN 11/500") == 0);
+    assert(std::strcmp(protocolName("\r7\r"), "CAN 29/500") == 0);
+    assert(std::strcmp(protocolName("A"), "J1939") == 0);
+    assert(protocolName("A0") == nullptr && protocolName("?") == nullptr);
+    assert(protocolName("A66") == nullptr);
+
     // Adapter id: vendor suffix dropped, bounded length.
     char id[24];
     assert(adapterId("ATZ\r\rELM327 v1.5 (LAB SIM)\r\r", id, sizeof(id)) &&
@@ -114,6 +128,22 @@ int main() {
         "Trim B1: +1/+8 B2: -2/n/v %\n"
         "TX: 175 | Timeouts: 0 | Fehler: 0";
     if (std::strcmp(text, live) != 0) { std::printf("%s\n", text); assert(false); }
+
+    // Known protocol replaces "verbunden"; a fresh ECU voltage beats ATRV.
+    std::strcpy(s.protocol, "CAN 11/500");
+    s.adapterVoltage = {true, 13.9f, 1000};
+    Obd2Status::format(s, 6000, text, sizeof(text));
+    assert(std::strstr(text, "ELM327 v1.5 | CAN 11/500\n") == text);
+    assert(std::strstr(text, "Spannung: 13.50 V |") != nullptr);
+    s.protocol[0] = '\0';
+    // Ignition off: no ECU, but the adapter still measures pin 16.
+    s.link = Obd2Status::Link::NoEcu;
+    Obd2Status::format(s, 2000, text, sizeof(text));
+    assert(std::strstr(text, "Spannung: 13.9 V |") != nullptr);
+    Obd2Status::format(s, 1000 + Obd2Status::kAdapterVoltageStaleMs + 1, text, sizeof(text));
+    assert(std::strstr(text, "Spannung: -- |") != nullptr);
+    s.adapterVoltage = {};
+    s.link = Obd2Status::Link::Live;
 
     Obd2Status::format(s, 6001, text, sizeof(text));  // stale -> dashes
     assert(std::strstr(text, "Drehzahl: -- | Tempo: --") != nullptr);

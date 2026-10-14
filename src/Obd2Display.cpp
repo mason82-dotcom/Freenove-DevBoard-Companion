@@ -50,6 +50,12 @@ void format(const Snapshot& s, uint32_t now, char* out, size_t capacity) {
     value(load, sizeof(load), s, Load, now, "%.1f %%");
     value(throttle, sizeof(throttle), s, Throttle, now, "%.1f %%");
     value(volt, sizeof(volt), s, Voltage, now, "%.2f V");
+    // Without a fresh ECU value show what the adapter measures itself (ATRV):
+    // also with the ignition off, which tells the adapter link is fine.
+    const Value& av = s.adapterVoltage;
+    if (volt[0] == '-' && av.valid && s.link != Link::Idle &&
+        static_cast<uint32_t>(now - av.atMs) <= kAdapterVoltageStaleMs)
+        snprintf(volt, sizeof(volt), "%.1f V", static_cast<double>(av.value));
     value(maf, sizeof(maf), s, Maf, now, "%.1f g/s");
     char tx[8], timeouts[8], errors[8];
     counter(tx, sizeof(tx), s.tx, 99999);
@@ -60,18 +66,23 @@ void format(const Snapshot& s, uint32_t now, char* out, size_t capacity) {
     value(lt1, sizeof(lt1), s, LongTrimB1, now, "%+.0f");
     value(st2, sizeof(st2), s, ShortTrimB2, now, "%+.0f");
     value(lt2, sizeof(lt2), s, LongTrimB2, now, "%+.0f");
+    // Live with a known protocol: adapter and protocol instead of "verbunden".
+    char header[48];
+    if (s.link == Link::Live && s.adapter[0] && s.protocol[0])
+        snprintf(header, sizeof(header), "%s | %s", s.adapter, s.protocol);
+    else
+        snprintf(header, sizeof(header), "ELM327: %s%s%s", linkText(s.link, s.vehicleProfile),
+                 s.link == Link::Live && s.adapter[0] ? " | " : "",
+                 s.link == Link::Live ? s.adapter : "");
     snprintf(out, capacity,
-             "ELM327: %s%s%s\n"
+             "%s\n"
              "Drehzahl: %s | Tempo: %s\n"
              "Kuehlmittel: %s | Ansaug: %s\n"
              "Last: %s | Drossel: %s\n"
              "Spannung: %s | MAF: %s\n"
              "Trim B1: %s/%s B2: %s/%s %%\n"
              "TX: %s | Timeouts: %s | Fehler: %s",
-             linkText(s.link, s.vehicleProfile),
-             s.link == Link::Live && s.adapter[0] ? " | " : "",
-             s.link == Link::Live ? s.adapter : "",
-             rpm, speed, coolant, intake, load, throttle, volt, maf,
+             header, rpm, speed, coolant, intake, load, throttle, volt, maf,
              st1, lt1, st2, lt2, tx, timeouts, errors);
 }
 }  // namespace Obd2Status

@@ -92,6 +92,57 @@ inline bool adapterId(const char* reply, char* out, size_t capacity) {
     return n > 0;
 }
 
+// ATRV reply "12.6V" (clones: "12.6 V", leading CR). Plausible 0..40 V only.
+inline bool adapterVoltage(const char* reply, float& volts) {
+    if (!reply) return false;
+    size_t i = 0;
+    while (reply[i] == '\r' || reply[i] == '\n' || reply[i] == ' ') ++i;
+    float value = 0;
+    int digits = 0, decimals = -1;
+    for (; reply[i] != '\0' && i < 32; ++i) {
+        const char c = reply[i];
+        if (c >= '0' && c <= '9') {
+            value = value * 10 + (c - '0');
+            ++digits;
+            if (decimals >= 0) ++decimals;
+        } else if (c == '.' && decimals < 0 && digits > 0) {
+            decimals = 0;
+        } else {
+            break;
+        }
+    }
+    while (reply[i] == ' ') ++i;
+    if (digits == 0 || decimals == 0 || (reply[i] != 'V' && reply[i] != 'v')) return false;
+    for (int d = 0; d < decimals; ++d) value /= 10;
+    if (value > 40.0f) return false;
+    volts = value;
+    return true;
+}
+
+// ATDPN reply "A6" (automatic, protocol 6) or "6". Short display names.
+inline const char* protocolName(const char* reply) {
+    if (!reply) return nullptr;
+    size_t i = 0;
+    while (reply[i] == '\r' || reply[i] == '\n' || reply[i] == ' ') ++i;
+    if (reply[i] == 'A' && reply[i + 1] != '\0' && reply[i + 1] != '\r') ++i;
+    const char c = reply[i];
+    const char next = reply[i + 1];
+    if (next != '\0' && next != '\r' && next != '\n' && next != ' ') return nullptr;
+    switch (c) {
+        case '1': return "J1850 PWM";
+        case '2': return "J1850 VPW";
+        case '3': return "ISO 9141";
+        case '4': return "KWP 5 Baud";
+        case '5': return "KWP schnell";
+        case '6': return "CAN 11/500";
+        case '7': return "CAN 29/500";
+        case '8': return "CAN 11/250";
+        case '9': return "CAN 29/250";
+        case 'A': return "J1939";
+        default: return nullptr;
+    }
+}
+
 // Mode 01 reply "41 PP A [B]" for pid; first matching ECU line wins.
 inline bool readPid(const char* reply, uint8_t pid, uint8_t* out, size_t count) {
     if (!out || count == 0 || count > 4) return false;

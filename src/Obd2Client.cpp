@@ -122,6 +122,20 @@ void setLink(Snapshot& s, Link link) {
     publish(s);
 }
 
+// ATRV: answered by the adapter itself, so it also works while no ECU is
+// awake (ignition off). Only a timeout is fatal (late reply, see pollOnce).
+Result readAdapterVoltage(Snapshot& s) {
+    const Result r = exchange(Command::AdapterVoltage, kSetupTimeoutMs, s);
+    float volts = 0;
+    if (r == Result::Ok && Obd2Response::adapterVoltage(reply, volts)) {
+        s.adapterVoltage = {true, volts, millis()};
+        publish(s);
+    } else {
+        countFailure(r == Result::Ok ? Result::Overflow : r, s);
+    }
+    return r;
+}
+
 bool initializeAdapter(Snapshot& s) {
     setLink(s, Link::Initializing);
     if (!countFailure(exchange(Command::AdapterReset, kResetTimeoutMs, s), s)) return false;
@@ -135,7 +149,7 @@ bool initializeAdapter(Snapshot& s) {
             return false;
         }
     }
-    return true;
+    return readAdapterVoltage(s) != Result::Timeout;
 }
 
 bool discoverSupport(Snapshot& s) {
@@ -169,11 +183,23 @@ bool discoverSupport(Snapshot& s) {
         s.supported[i] = Obd2Response::isSupported(mask, base, pid);
     }
     s.supportKnown = true;
+    // Which protocol the automatic search found (diagnosis of the first test).
+    if (countFailure(exchange(Command::AdapterProtocol, kSetupTimeoutMs, s), s)) {
+        const char* name = Obd2Response::protocolName(reply);
+        strncpy(s.protocol, name ? name : "?", sizeof(s.protocol) - 1);
+    }
+    Serial.printf("OBD2: %s, protocol %s, %.1f V\n", s.adapter[0] ? s.adapter : "adapter ?",
+                  s.protocol[0] ? s.protocol : "?",
+                  s.adapterVoltage.valid ? static_cast<double>(s.adapterVoltage.value) : 0.0);
     return true;
 }
 
 // Returns false when the session should be re-established.
 bool pollOnce(Snapshot& s, uint8_t& slowIndex, uint8_t& failures) {
+    if (slowIndex % 10 == 0) {
+        const Result r = readAdapterVoltage(s);
+        if (r == Result::Timeout || r == Result::Closed || r == Result::Aborted) return false;
+    }
     // RPM and speed every cycle; the remaining PIDs round-robin.
     const uint8_t slow = static_cast<uint8_t>(Obd2Status::Coolant +
         slowIndex++ % (Obd2Status::kPidCount - Obd2Status::Coolant));
@@ -212,6 +238,7 @@ void endSession(Snapshot& s, Link link) {
     client.stop();
     for (auto& v : s.values) v = Obd2Status::Value{};
     s.supportKnown = false;
+    s.protocol[0] = '\0';  // the adapter voltage stays: it does not need an ECU
     setLink(s, link);
     publish(s);
     // Leaving the page hands the station back to the home WLAN (Hermes).
