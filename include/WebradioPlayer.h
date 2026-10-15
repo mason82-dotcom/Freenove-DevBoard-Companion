@@ -23,6 +23,7 @@ bool begin();
 void service(uint32_t nowMs);  // call every loop: events, scheduled restarts
 void togglePlay();
 void step(int delta);          // previous/next station; reconnects if playing
+void select(uint8_t index);    // station list: jump to index and play it
 void changeVolume(int delta);
 View view();
 }  // namespace Webradio

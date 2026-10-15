@@ -1,4 +1,5 @@
 #include "WebradioPlayer.h"
+#include "WebradioSettings.h"
 #include "WebradioStations.h"
 #include "WifiLink.h"
 #include <Arduino.h>
@@ -18,6 +19,24 @@ bool retryPending = false;
 uint32_t retryAtMs = 0;
 char title[RadioEngine::kTextLen] = {};
 bool ready = false;
+// Persistence: user actions mark the state dirty; service() saves it once it
+// has been unchanged for kSaveDelayMs, and only if it differs from NVS.
+Webradio::Settings::Values saved;
+bool dirty = false;
+uint32_t dirtyAtMs = 0;
+
+void markDirty() {
+    dirty = true;
+    dirtyAtMs = millis();
+}
+
+Webradio::Settings::Values currentSettings() {
+    Webradio::Settings::Values v;
+    v.station = stationIndex;
+    v.volume = static_cast<uint8_t>(RadioEngine::volume());
+    v.playing = wantsPlay;
+    return v;
+}
 
 bool wifiReady() { return WifiLink::connectedTo(WifiLink::Profile::Home); }
 
@@ -58,7 +77,21 @@ bool begin() {
     ready = RadioEngine::begin();
     Serial.printf("Webradio engine: %s, %u stations\n", ready ? "READY" : "FAILED",
                   static_cast<unsigned>(kStationCount));
-    return ready;
+    if (!ready) return false;
+    // Continue where the radio was: station, volume and, if it was playing,
+    // playback (connectCurrent waits for the home WLAN on its own).
+    saved = Settings::load(static_cast<uint8_t>(kStationCount),
+                           static_cast<uint8_t>(RadioEngine::kMaxVolume));
+    stationIndex = saved.station;
+    RadioEngine::setVolume(saved.volume);
+    Serial.printf("Webradio: restored station %u, volume %u%s\n",
+                  static_cast<unsigned>(stationIndex + 1), static_cast<unsigned>(saved.volume),
+                  saved.playing ? ", resuming playback" : "");
+    if (saved.playing) {
+        wantsPlay = true;
+        connectCurrent();
+    }
+    return true;
 }
 
 void service(uint32_t now) {
@@ -67,13 +100,22 @@ void service(uint32_t now) {
     while (RadioEngine::pollEvent(e)) {
         if (e.gen != gen) continue;  // event of a previous stream
         switch (e.type) {
-            case RadioEngine::EventType::Title: utf8Copy(title, e.text, sizeof(title)); break;
+            case RadioEngine::EventType::Title: toDisplayAscii(title, e.text, sizeof(title)); break;
             case RadioEngine::EventType::Playing:
                 phase = Phase::Playing;
                 attempt = 0;
                 break;
             case RadioEngine::EventType::ConnectFailed:
             case RadioEngine::EventType::StreamLost: onFailure(); break;
+        }
+    }
+    // Signed: 'now' is taken at the start of the UI loop, markDirty() may run
+    // later in the same loop, so now - dirtyAtMs can be slightly negative.
+    if (dirty && static_cast<int32_t>(now - dirtyAtMs) >= static_cast<int32_t>(Settings::kSaveDelayMs)) {
+        dirty = false;
+        const Settings::Values v = currentSettings();
+        if (v.station != saved.station || v.volume != saved.volume || v.playing != saved.playing) {
+            if (Settings::save(v)) saved = v;
         }
     }
     if (retryPending && static_cast<int32_t>(now - retryAtMs) >= 0) {
@@ -88,6 +130,7 @@ void service(uint32_t now) {
 void togglePlay() {
     if (!ready) return;
     attempt = 0;
+    markDirty();
     if (wantsPlay) {
         wantsPlay = false;
         retryPending = false;
@@ -106,10 +149,24 @@ void step(int delta) {
     stationIndex = static_cast<uint8_t>(((stationIndex + delta) % count + count) % count);
     attempt = 0;
     title[0] = '\0';
+    markDirty();
     if (wantsPlay) connectCurrent();
 }
 
-void changeVolume(int delta) { RadioEngine::setVolume(RadioEngine::volume() + delta); }
+void select(uint8_t index) {
+    if (!ready || index >= kStationCount) return;
+    stationIndex = index;
+    attempt = 0;
+    title[0] = '\0';
+    wantsPlay = true;  // picking a station from the list means "play this"
+    markDirty();
+    connectCurrent();
+}
+
+void changeVolume(int delta) {
+    RadioEngine::setVolume(RadioEngine::volume() + delta);
+    markDirty();
+}
 
 View view() {
     View v;
