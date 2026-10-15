@@ -37,6 +37,7 @@ struct Snapshot {
     Link link = Link::NotConfigured;
     bool vehicleProfile = false;  // true: dongle access point, false: lab/home WLAN
     char adapter[24] = {};  // ATZ identification, e.g. "ELM327 v1.5"
+    char atzRaw[48] = {};   // raw ATZ reply, CR/LF as '|', others '.', for clone diagnosis
     char protocol[16] = {}; // ATDPN after the automatic search, e.g. "CAN 11/500"
     Value adapterVoltage;   // ATRV: on-board voltage at OBD pin 16, no ECU needed
     Value values[kPidCount];

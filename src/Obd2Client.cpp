@@ -141,13 +141,14 @@ bool initializeAdapter(Snapshot& s) {
     setLink(s, Link::Initializing);
     if (!countFailure(exchange(Command::AdapterReset, kResetTimeoutMs, s), s)) return false;
     Obd2Response::adapterId(reply, s.adapter, sizeof(s.adapter));
-    // Raw ATZ reply (CR/LF as '|', non-printables as '.') for clone diagnosis.
-    char raw[64];
+    // Raw ATZ reply (CR/LF as '|', non-printables as '.') for clone diagnosis:
+    // serial log and CSV header (nobody reads the serial port in the car).
     size_t n = 0;
-    for (const char* c = reply; *c && n + 1 < sizeof(raw); ++c)
-        raw[n++] = (*c == '\r' || *c == '\n') ? '|' : (*c >= ' ' && *c < 127) ? *c : '.';
-    raw[n] = '\0';
-    Serial.printf("OBD2: ATZ reply \"%s\" -> id \"%s\"\n", raw, s.adapter);
+    for (const char* c = reply; *c && n + 1 < sizeof(s.atzRaw); ++c)
+        s.atzRaw[n++] = (*c == '\r' || *c == '\n') ? '|' : (*c >= ' ' && *c < 127 && *c != ';') ? *c : '.';
+    s.atzRaw[n] = '\0';
+    Serial.printf("OBD2: ATZ reply \"%s\" (%u bytes) -> id \"%s\"\n", s.atzRaw,
+                  static_cast<unsigned>(strlen(reply)), s.adapter);
     for (Command c : {Command::AdapterEchoOff, Command::AdapterLinesOff,
                       Command::AdapterSpacesOff, Command::AdapterHeadersOff,
                       Command::AdapterAutoProtocol}) {

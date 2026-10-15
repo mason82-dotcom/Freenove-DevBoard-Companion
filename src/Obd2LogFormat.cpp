@@ -50,16 +50,17 @@ void clean(char* dst, size_t cap, const char* src) {
 size_t formatHeader(const Obd2Status::Snapshot& s, const char* vehicleTitle,
                     const char* started, char* out, size_t capacity) {
     if (!out || capacity == 0) return 0;
-    char adapter[24], protocol[16], vehicle[32];
+    char adapter[24], protocol[16], vehicle[32], atz[48];
     clean(adapter, sizeof(adapter), s.adapter[0] ? s.adapter : "?");
     clean(protocol, sizeof(protocol), s.protocol[0] ? s.protocol : "?");
     clean(vehicle, sizeof(vehicle), vehicleTitle ? vehicleTitle : "generic");
+    clean(atz, sizeof(atz), s.atzRaw[0] ? s.atzRaw : "(leer)");
     int n = snprintf(out, capacity,
                      "# Freenove companion OBD2 log (read-only Mode 01); vehicle=%s; adapter=%s; "
-                     "protocol=%s; started=%s; t_s=seconds since log start, "
+                     "protocol=%s; atz=%s; started=%s; t_s=seconds since log start, "
                      "empty=stale or unsupported\n"
                      "t_s,time,adapter_v",
-                     vehicle, adapter, protocol, started && *started ? started : "unknown");
+                     vehicle, adapter, protocol, atz, started && *started ? started : "unknown");
     if (n < 0 || static_cast<size_t>(n) >= capacity) {
         out[0] = 0;
         return 0;

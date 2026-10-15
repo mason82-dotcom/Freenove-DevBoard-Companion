@@ -25,7 +25,11 @@ int main() {
     std::puts(header);
     assert(std::strstr(header, "# Freenove companion OBD2 log") == header);
     assert(std::strstr(header, "vehicle=C350 W204 M272; adapter=ELM327 v1.5; protocol=CAN 11/500; "
-                               "started=2026-10-14 20:43:05;"));
+                               "atz=(leer); started=2026-10-14 20:43:05;"));
+    std::strcpy(s.atzRaw, "||OBDII,v1.5||");
+    formatHeader(s, "x", "", header, sizeof(header));
+    assert(std::strstr(header, "atz=||OBDII v1.5||;"));  // comma cannot split the CSV
+    s.atzRaw[0] = 0;
     const char* columns = std::strchr(header, '\n') + 1;
     assert(std::strcmp(columns,
         "t_s,time,adapter_v,rpm,speed_kmh,coolant_c,intake_c,load_pct,throttle_pct,ecu_v,maf_gs,"
