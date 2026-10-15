@@ -68,6 +68,20 @@ class WebradioTests(unittest.TestCase):
         self.assertIn("v.station != saved.station || v.volume != saved.volume", self.player)
         self.assertIn("kSaveDelayMs = 5000", read("include/WebradioSettings.h"))
 
+    def test_station_list_built_on_demand_and_freed_outside_callbacks(self):
+        self.assertIn('LV_SYMBOL_LIST " Sender"', self.gui)
+        self.assertIn("for (size_t i = 0; i < Webradio::kStationCount; ++i)", self.gui)
+        self.assertIn("Webradio::select(index);", self.gui)
+        # Never delete the list inside its own callback or asynchronously.
+        self.assertNotIn("lv_obj_del_async(radioList)", self.gui)
+        poll = self.gui.split("void poll()", 1)[1]
+        self.assertLess(poll.index("lv_timer_handler();"), poll.index("reapRadioList();"))
+        self.assertIn("radioListClosing = false;", self.gui.split("void makeScreenBlank()", 1)[1])
+        select = self.player.split("void select(uint8_t index)", 1)[1].split("void changeVolume", 1)[0]
+        self.assertIn("if (!ready || index >= kStationCount) return;", select)
+        self.assertIn("wantsPlay = true;", select)
+        self.assertIn("markDirty();", select)
+
     def test_no_server_storage_or_recording(self):
         for name in ("src/RadioEngine.cpp", "src/WebradioPlayer.cpp", "src/WebradioText.cpp"):
             text = read(name)

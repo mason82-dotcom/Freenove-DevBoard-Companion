@@ -68,6 +68,8 @@ lv_obj_t* radioTitle = nullptr;
 lv_obj_t* radioStatus = nullptr;
 lv_obj_t* radioVolume = nullptr;
 lv_obj_t* radioPlayLabel = nullptr;
+lv_obj_t* radioList = nullptr;  // station list overlay, only while open
+bool radioListClosing = false;  // hidden, deleted by poll() outside LVGL callbacks
 uint32_t lastRadioRefresh = 0;
 // IR trace: 100 samples at 25 Hz = 4 s; LVGL reads this array directly.
 constexpr uint16_t kWavePoints = 100;
@@ -166,6 +168,8 @@ void makeScreenBlank() {
     droneLabel = nullptr;
     droneFooter = nullptr;
     radioStation = radioTitle = radioStatus = radioVolume = radioPlayLabel = nullptr;
+    radioList = nullptr;  // deleted together with the screen
+    radioListClosing = false;
     ftpButtonLabel = nullptr;
 }
 
@@ -362,6 +366,68 @@ void onRadioPlay(lv_event_t*) { Webradio::togglePlay(); }
 void onRadioQuieter(lv_event_t*) { Webradio::changeVolume(-1); }
 void onRadioLouder(lv_event_t*) { Webradio::changeVolume(1); }
 
+// The list is built on demand and freed on close: 44 buttons cost LVGL
+// memory only while they are visible.
+void closeRadioList() {
+    if (!radioList) return;
+    // Called from the list's own button callbacks: hide now, delete in poll()
+    // after lv_timer_handler(). (lv_obj_del_async could run after a page
+    // switch already deleted the list with the screen.)
+    lv_obj_add_flag(radioList, LV_OBJ_FLAG_HIDDEN);
+    radioListClosing = true;
+}
+
+void reapRadioList() {
+    if (!radioListClosing) return;
+    radioListClosing = false;
+    if (radioList) lv_obj_del(radioList);
+    radioList = nullptr;
+}
+
+void onRadioListPick(lv_event_t* event) {
+    const auto index = static_cast<uint8_t>(reinterpret_cast<uintptr_t>(lv_event_get_user_data(event)));
+    Webradio::select(index);
+    closeRadioList();
+}
+
+void openRadioList() {
+    radioList = lv_obj_create(lv_scr_act());
+    lv_obj_set_pos(radioList, 8, 40);
+    lv_obj_set_size(radioList, 304, 168);
+    lv_obj_set_style_bg_color(radioList, color(0x0B1220), 0);
+    lv_obj_set_style_border_color(radioList, color(0x36516B), 0);
+    lv_obj_set_style_radius(radioList, 8, 0);
+    lv_obj_set_style_pad_all(radioList, 4, 0);
+    lv_obj_set_style_pad_row(radioList, 4, 0);
+    lv_obj_set_flex_flow(radioList, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_scroll_dir(radioList, LV_DIR_VER);
+    const uint8_t current = Webradio::view().index;
+    lv_obj_t* currentButton = nullptr;
+    char text[48];
+    for (size_t i = 0; i < Webradio::kStationCount; ++i) {
+        snprintf(text, sizeof(text), "%2u  %s", static_cast<unsigned>(i + 1), Webradio::kStations[i].name);
+        lv_obj_t* button = makeButton(radioList, 0, 0, 286, 30, text,
+                                      i == current ? 0x2E6A9E : 0x1A304B);
+        lv_obj_t* label = lv_obj_get_child(button, 0);
+        lv_label_set_long_mode(label, LV_LABEL_LONG_DOT);
+        lv_obj_set_width(label, 270);
+        lv_obj_align(label, LV_ALIGN_LEFT_MID, 0, 0);
+        lv_obj_add_event_cb(button, onRadioListPick, LV_EVENT_CLICKED,
+                            reinterpret_cast<void*>(static_cast<uintptr_t>(i)));
+        if (i == current) currentButton = button;
+    }
+    if (currentButton) lv_obj_scroll_to_view(currentButton, LV_ANIM_OFF);
+    lv_mem_monitor_t mem;
+    lv_mem_monitor(&mem);
+    Serial.printf("Webradio: station list open, LVGL memory %u%% used, %u B free\n",
+                  static_cast<unsigned>(mem.used_pct), static_cast<unsigned>(mem.free_size));
+}
+
+void onRadioListToggle(lv_event_t*) {
+    if (radioList && !radioListClosing) closeRadioList();
+    else if (!radioList) openRadioList();
+}
+
 void updateObd2Details() {
     if (!obd2Label || !showing(CompanionModules::Id::Obd2)) return;
     char text[320];
@@ -471,6 +537,8 @@ void showModule(uint8_t page) {
             if (b.cb == onRadioPlay) radioPlayLabel = lv_obj_get_child(button, 0);
         }
         radioVolume = newLabel(panel, "", 0, 100, 0x91A8C1);
+        lv_obj_t* list = makeButton(root, 222, 7, 90, 28, LV_SYMBOL_LIST " Sender", 0x25415D);
+        lv_obj_add_event_cb(list, onRadioListToggle, LV_EVENT_CLICKED, nullptr);
         updateRadioDetails();
     } else if (module.id == CompanionModules::Id::Obd2) {
         obd2Label = newLabel(panel, "ELM327 wird verbunden ...", 9, 0, 0x81DDBC);
@@ -615,6 +683,7 @@ void poll() {
         lastTick = now;
     }
     lv_timer_handler();
+    reapRadioList();
 
     if (requestedPage != shownPage) {
         if (showing(CompanionModules::Id::PulsOx)) PulsOx::requestActive(false);

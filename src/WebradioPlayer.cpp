@@ -153,6 +153,16 @@ void step(int delta) {
     if (wantsPlay) connectCurrent();
 }
 
+void select(uint8_t index) {
+    if (!ready || index >= kStationCount) return;
+    stationIndex = index;
+    attempt = 0;
+    title[0] = '\0';
+    wantsPlay = true;  // picking a station from the list means "play this"
+    markDirty();
+    connectCurrent();
+}
+
 void changeVolume(int delta) {
     RadioEngine::setVolume(RadioEngine::volume() + delta);
     markDirty();
