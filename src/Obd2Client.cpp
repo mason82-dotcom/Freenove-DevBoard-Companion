@@ -1,5 +1,6 @@
 #include "Obd2Status.h"
 #include "Obd2Policy.h"
+#include "Obd2Log.h"
 #include "Obd2Response.h"
 #include "VehicleProfiles.h"
 #include "WifiLink.h"
@@ -122,10 +123,32 @@ void setLink(Snapshot& s, Link link) {
     publish(s);
 }
 
+// ATRV: answered by the adapter itself, so it also works while no ECU is
+// awake (ignition off). Only a timeout is fatal (late reply, see pollOnce).
+Result readAdapterVoltage(Snapshot& s) {
+    const Result r = exchange(Command::AdapterVoltage, kSetupTimeoutMs, s);
+    float volts = 0;
+    if (r == Result::Ok && Obd2Response::adapterVoltage(reply, volts)) {
+        s.adapterVoltage = {true, volts, millis()};
+        publish(s);
+    } else {
+        countFailure(r == Result::Ok ? Result::Overflow : r, s);
+    }
+    return r;
+}
+
 bool initializeAdapter(Snapshot& s) {
     setLink(s, Link::Initializing);
     if (!countFailure(exchange(Command::AdapterReset, kResetTimeoutMs, s), s)) return false;
     Obd2Response::adapterId(reply, s.adapter, sizeof(s.adapter));
+    // Raw ATZ reply (CR/LF as '|', non-printables as '.') for clone diagnosis:
+    // serial log and CSV header (nobody reads the serial port in the car).
+    size_t n = 0;
+    for (const char* c = reply; *c && n + 1 < sizeof(s.atzRaw); ++c)
+        s.atzRaw[n++] = (*c == '\r' || *c == '\n') ? '|' : (*c >= ' ' && *c < 127 && *c != ';') ? *c : '.';
+    s.atzRaw[n] = '\0';
+    Serial.printf("OBD2: ATZ reply \"%s\" (%u bytes) -> id \"%s\"\n", s.atzRaw,
+                  static_cast<unsigned>(strlen(reply)), s.adapter);
     for (Command c : {Command::AdapterEchoOff, Command::AdapterLinesOff,
                       Command::AdapterSpacesOff, Command::AdapterHeadersOff,
                       Command::AdapterAutoProtocol}) {
@@ -135,7 +158,7 @@ bool initializeAdapter(Snapshot& s) {
             return false;
         }
     }
-    return true;
+    return readAdapterVoltage(s) != Result::Timeout;
 }
 
 bool discoverSupport(Snapshot& s) {
@@ -169,11 +192,23 @@ bool discoverSupport(Snapshot& s) {
         s.supported[i] = Obd2Response::isSupported(mask, base, pid);
     }
     s.supportKnown = true;
+    // Which protocol the automatic search found (diagnosis of the first test).
+    if (countFailure(exchange(Command::AdapterProtocol, kSetupTimeoutMs, s), s)) {
+        const char* name = Obd2Response::protocolName(reply);
+        strncpy(s.protocol, name ? name : "?", sizeof(s.protocol) - 1);
+    }
+    Serial.printf("OBD2: %s, protocol %s, %.1f V\n", s.adapter[0] ? s.adapter : "adapter ?",
+                  s.protocol[0] ? s.protocol : "?",
+                  s.adapterVoltage.valid ? static_cast<double>(s.adapterVoltage.value) : 0.0);
     return true;
 }
 
 // Returns false when the session should be re-established.
 bool pollOnce(Snapshot& s, uint8_t& slowIndex, uint8_t& failures) {
+    if (slowIndex % 10 == 0) {
+        const Result r = readAdapterVoltage(s);
+        if (r == Result::Timeout || r == Result::Closed || r == Result::Aborted) return false;
+    }
     // RPM and speed every cycle; the remaining PIDs round-robin.
     const uint8_t slow = static_cast<uint8_t>(Obd2Status::Coolant +
         slowIndex++ % (Obd2Status::kPidCount - Obd2Status::Coolant));
@@ -212,6 +247,9 @@ void endSession(Snapshot& s, Link link) {
     client.stop();
     for (auto& v : s.values) v = Obd2Status::Value{};
     s.supportKnown = false;
+    s.protocol[0] = '\0';  // the adapter voltage stays: it does not need an ECU
+    // One log file per page visit: reconnects continue it, leaving ends it.
+    if (link == Link::Idle) Obd2Log::close();
     setLink(s, link);
     publish(s);
     // Leaving the page hands the station back to the home WLAN (Hermes).
@@ -259,7 +297,15 @@ void task(void*) {
         setLink(s, Link::Live);
         uint8_t slowIndex = 0, failures = 0;
         uint32_t lastLog = millis();
+        uint32_t lastRow = millis() - Obd2Log::kRowIntervalMs;
         while (pollOnce(s, slowIndex, failures)) {
+            if (static_cast<uint32_t>(millis() - lastRow) >= Obd2Log::kRowIntervalMs) {
+                // Fixed 1 s grid; after a long stall resync instead of bursting.
+                lastRow += Obd2Log::kRowIntervalMs;
+                if (static_cast<uint32_t>(millis() - lastRow) >= Obd2Log::kRowIntervalMs)
+                    lastRow = millis();
+                Obd2Log::write(s, Obd2Status::vehicleTitle());
+            }
             if (static_cast<uint32_t>(millis() - lastLog) >= 10000) {
                 lastLog = millis();
                 Serial.printf("OBD2: live tx=%lu timeouts=%lu errors=%lu stack_free=%u\n",
@@ -286,7 +332,8 @@ void begin() {
     s.vehicleProfile = kVehicle;
     publish(s);
     // Created once and parked: no adapter traffic until the page is opened.
-    if (xTaskCreatePinnedToCore(task, "obd2", 6144, nullptr, 1, &worker, 0) != pdPASS)
+    // 7 KB: the SD log adds FATFS calls (measured 2.7 KB free with 6 KB).
+    if (xTaskCreatePinnedToCore(task, "obd2", 7168, nullptr, 1, &worker, 0) != pdPASS)
         worker = nullptr;
 #endif
 }

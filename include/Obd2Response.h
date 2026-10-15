@@ -66,8 +66,27 @@ inline bool contains(const char* text, const char* word) {
     return false;
 }
 
+// First reply line that is not an echo ("AT..."), "OK", "?" or empty.
+// Clones do not always answer ATZ with "ELM327 vX.Y" (Kingbolen Wi-Fi,
+// 2026-10-14: adapter id was not recognized), so this is the fallback name.
+inline const char* firstContentLine(const char* reply) {
+    for (size_t i = 0; reply[i] != '\0' && i < 512;) {
+        while (reply[i] == '\r' || reply[i] == '\n' || reply[i] == ' ') ++i;
+        const char* line = reply + i;
+        size_t n = 0;
+        while (line[n] && line[n] != '\r' && line[n] != '\n') ++n;
+        const bool echo = n >= 2 && line[0] == 'A' && line[1] == 'T';
+        const bool status = (n == 2 && line[0] == 'O' && line[1] == 'K') || (n == 1 && line[0] == '?');
+        if (n > 0 && !echo && !status) return line;
+        if (n == 0) return nullptr;
+        i += n;
+    }
+    return nullptr;
+}
+
 // Copies the "ELM327 vX.Y" identification from an ATZ reply, without any
-// vendor suffix in parentheses, truncated to fit one display line.
+// vendor suffix in parentheses, truncated to fit one display line; other
+// adapters: their first content line (printable characters only).
 constexpr size_t kAdapterIdMax = 15;
 inline bool adapterId(const char* reply, char* out, size_t capacity) {
     if (!out || capacity == 0) return false;
@@ -80,16 +99,68 @@ inline bool adapterId(const char* reply, char* out, size_t capacity) {
         while (kTag[k] != '\0' && reply[i + k] == kTag[k]) ++k;
         if (kTag[k] == '\0') id = reply + i;
     }
+    if (!id) id = firstContentLine(reply);
     if (!id) return false;
     size_t n = 0;
     while (id[n] && id[n] != '\r' && id[n] != '\n' && id[n] != '(' &&
            n < kAdapterIdMax && n + 1 < capacity) {
-        out[n] = id[n];
+        out[n] = (id[n] >= ' ' && id[n] < 127) ? id[n] : '?';
         ++n;
     }
     while (n > 0 && out[n - 1] == ' ') --n;
     out[n] = '\0';
     return n > 0;
+}
+
+// ATRV reply "12.6V" (clones: "12.6 V", leading CR). Plausible 0..40 V only.
+inline bool adapterVoltage(const char* reply, float& volts) {
+    if (!reply) return false;
+    size_t i = 0;
+    while (reply[i] == '\r' || reply[i] == '\n' || reply[i] == ' ') ++i;
+    float value = 0;
+    int digits = 0, decimals = -1;
+    for (; reply[i] != '\0' && i < 32; ++i) {
+        const char c = reply[i];
+        if (c >= '0' && c <= '9') {
+            value = value * 10 + (c - '0');
+            ++digits;
+            if (decimals >= 0) ++decimals;
+        } else if (c == '.' && decimals < 0 && digits > 0) {
+            decimals = 0;
+        } else {
+            break;
+        }
+    }
+    while (reply[i] == ' ') ++i;
+    if (digits == 0 || decimals == 0 || (reply[i] != 'V' && reply[i] != 'v')) return false;
+    for (int d = 0; d < decimals; ++d) value /= 10;
+    if (value > 40.0f) return false;
+    volts = value;
+    return true;
+}
+
+// ATDPN reply "A6" (automatic, protocol 6) or "6". Short display names.
+inline const char* protocolName(const char* reply) {
+    if (!reply) return nullptr;
+    size_t i = 0;
+    while (reply[i] == '\r' || reply[i] == '\n' || reply[i] == ' ') ++i;
+    if (reply[i] == 'A' && reply[i + 1] != '\0' && reply[i + 1] != '\r') ++i;
+    const char c = reply[i];
+    const char next = reply[i + 1];
+    if (next != '\0' && next != '\r' && next != '\n' && next != ' ') return nullptr;
+    switch (c) {
+        case '1': return "J1850 PWM";
+        case '2': return "J1850 VPW";
+        case '3': return "ISO 9141";
+        case '4': return "KWP 5 Baud";
+        case '5': return "KWP schnell";
+        case '6': return "CAN 11/500";
+        case '7': return "CAN 29/500";
+        case '8': return "CAN 11/250";
+        case '9': return "CAN 29/250";
+        case 'A': return "J1939";
+        default: return nullptr;
+    }
 }
 
 // Mode 01 reply "41 PP A [B]" for pid; first matching ECU line wins.

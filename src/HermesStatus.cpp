@@ -55,6 +55,17 @@ bool isNumber(JsonVariantConst v) {
     return v.is<float>() || v.is<int>();
 }
 
+// Copies a short JSON string; anything else (null, number, too long) leaves
+// an empty or truncated printable text.
+void copyText(char* out, size_t capacity, JsonVariantConst v) {
+    out[0] = 0;
+    if (!v.is<const char*>()) return;
+    const char* text = v.as<const char*>();
+    size_t n = 0;
+    for (; text[n] && n + 1 < capacity; ++n) out[n] = (text[n] >= ' ' && text[n] < 127) ? text[n] : '?';
+    out[n] = 0;
+}
+
 // Applies a validated schema-v1 document to s; false leaves s untouched.
 bool applyDocument(const JsonDocument& doc, HermesStatus::Snapshot& s) {
     if (!getBool(doc["ok"]) || doc["schema_version"].as<int>() != 1) {
@@ -76,6 +87,15 @@ bool applyDocument(const JsonDocument& doc, HermesStatus::Snapshot& s) {
     s.gatewayKnown = hermes["gateway_running"].is<bool>();
     s.gatewayRunning = getBool(hermes["gateway_running"]);
     s.chatEnabled = getBool(doc["chat"]["enabled"]);
+    copyText(s.chatMode, sizeof(s.chatMode), doc["chat"]["mode"]);
+    copyText(s.version, sizeof(s.version), hermes["version"]);
+    copyText(s.dashboardReason, sizeof(s.dashboardReason), hermes["dashboard_reason"]);
+    s.dashboardHttp = isNumber(hermes["dashboard_http_status"]) ? hermes["dashboard_http_status"].as<int>() : 0;
+    s.lastProbeEpoch = isNumber(hermes["last_probe_success"]) ? hermes["last_probe_success"].as<uint32_t>() : 0;
+    s.hasRamTotal = isNumber(sys["ram_total_mb"]);
+    s.ramTotalMb = s.hasRamTotal ? sys["ram_total_mb"].as<float>() : 0;
+    s.hasUptime = isNumber(sys["uptime_s"]);
+    s.uptimeS = s.hasUptime ? sys["uptime_s"].as<float>() : 0;
     s.hasCpuTemp = isNumber(sys["cpu_temp_c"]);
     s.hasRam = isNumber(sys["ram_used_pct"]);
     s.hasLoad = isNumber(sys["load1"]);

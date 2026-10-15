@@ -61,7 +61,7 @@ class HermesStatusTests(unittest.TestCase):
         self.assertIn("HermesStatus::Snapshot state;", self.worker)
         self.assertIn("poll(state, quietPolls)", self.worker)
         self.assertIn("if (fetch(s, endMs)) s.failures = 0;", self.worker)
-        self.assertIn("HermesStatus::format(HermesStatus::read(), millis(), text, sizeof(text))",
+        self.assertIn("HermesStatus::format(snapshot, millis(), probeClock, text, sizeof(text));",
                       self.gui)
 
     def test_native_formatter(self):

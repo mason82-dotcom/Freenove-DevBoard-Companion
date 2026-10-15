@@ -68,6 +68,20 @@ int main() {
     const uint8_t maf[] = {0x01, 0xF4};
     assert(decodeValue(0x10, maf, v) && v == 5.0f);
 
+    // ATRV / ATDPN (adapter queries, clone spellings).
+    float volts = 0;
+    assert(adapterVoltage("12.6V", volts) && std::fabs(volts - 12.6f) < 1e-4f);
+    assert(adapterVoltage("\r14.12 V\r", volts) && std::fabs(volts - 14.12f) < 1e-4f);
+    assert(adapterVoltage("9v", volts) && volts == 9.0f);
+    assert(!adapterVoltage("?", volts) && !adapterVoltage("12.V", volts));
+    assert(!adapterVoltage("V", volts) && !adapterVoltage("99.9V", volts));
+    assert(!adapterVoltage("12.6", volts));  // unit required
+    assert(std::strcmp(protocolName("A6"), "CAN 11/500") == 0);
+    assert(std::strcmp(protocolName("\r7\r"), "CAN 29/500") == 0);
+    assert(std::strcmp(protocolName("A"), "J1939") == 0);
+    assert(protocolName("A0") == nullptr && protocolName("?") == nullptr);
+    assert(protocolName("A66") == nullptr);
+
     // Adapter id: vendor suffix dropped, bounded length.
     char id[24];
     assert(adapterId("ATZ\r\rELM327 v1.5 (LAB SIM)\r\r", id, sizeof(id)) &&
@@ -78,7 +92,13 @@ int main() {
     assert(adapterId("ATE0 echo\rELM327 v1.4b\r", id, sizeof(id)) &&
            std::strcmp(id, "ELM327 v1.4b") == 0);              // earlier 'E' ignored
     assert(!adapterId("OK\r", id, sizeof(id)) && id[0] == '\0');
-    assert(!adapterId("ELM32", id, sizeof(id)));
+    // Clones without "ELM327": first content line, never echo/OK/?.
+    assert(adapterId("ELM32", id, sizeof(id)) && std::strcmp(id, "ELM32") == 0);
+    assert(adapterId("ATZ\r\rOBDII v1.5\r\r", id, sizeof(id)) && std::strcmp(id, "OBDII v1.5") == 0);
+    assert(adapterId("\r\rV-LINK\r", id, sizeof(id)) && std::strcmp(id, "V-LINK") == 0);
+    assert(!adapterId("ATZ\r\r", id, sizeof(id)) && id[0] == '\0');
+    assert(!adapterId("?\r", id, sizeof(id)) && !adapterId("", id, sizeof(id)));
+    assert(adapterId("OBD\x01X", id, sizeof(id)) && std::strcmp(id, "OBD?X") == 0);
     char small[4];
     assert(adapterId("ELM327 v1.5", small, sizeof(small)) && std::strcmp(small, "ELM") == 0);
 
@@ -104,7 +124,7 @@ int main() {
     s.values[Obd2Status::ShortTrimB2] = {true, -2.3f, 1000};
     s.supported[Obd2Status::LongTrimB2] = false;
     s.tx = 175;
-    Obd2Status::format(s, 6000, text, sizeof(text));
+    Obd2Status::format(s, 3000, text, sizeof(text));
     const char* live =
         "ELM327: verbunden | ELM327 v1.5\n"
         "Drehzahl: 1234 rpm | Tempo: 42 km/h\n"
@@ -115,8 +135,27 @@ int main() {
         "TX: 175 | Timeouts: 0 | Fehler: 0";
     if (std::strcmp(text, live) != 0) { std::printf("%s\n", text); assert(false); }
 
-    Obd2Status::format(s, 6001, text, sizeof(text));  // stale -> dashes
+    // Known protocol replaces "verbunden"; a fresh ECU voltage beats ATRV.
+    std::strcpy(s.protocol, "CAN 11/500");
+    s.adapterVoltage = {true, 13.9f, 1000};
+    Obd2Status::format(s, 6000, text, sizeof(text));
+    assert(std::strstr(text, "ELM327 v1.5 | CAN 11/500\n") == text);
+    assert(std::strstr(text, "Spannung: 13.50 V |") != nullptr);
+    s.protocol[0] = '\0';
+    // Ignition off: no ECU, but the adapter still measures pin 16.
+    s.link = Obd2Status::Link::NoEcu;
+    Obd2Status::format(s, 2000, text, sizeof(text));
+    assert(std::strstr(text, "Spannung: 13.9 V |") != nullptr);
+    Obd2Status::format(s, 1000 + Obd2Status::kAdapterVoltageStaleMs + 1, text, sizeof(text));
+    assert(std::strstr(text, "Spannung: -- |") != nullptr);
+    s.adapterVoltage = {};
+    s.link = Obd2Status::Link::Live;
+
+    Obd2Status::format(s, 4001, text, sizeof(text));  // RPM/speed stale after 3 s
     assert(std::strstr(text, "Drehzahl: -- | Tempo: --") != nullptr);
+    assert(std::strstr(text, "Kuehlmittel: 90 C") != nullptr);  // slow PID: 15 s
+    Obd2Status::format(s, 16001, text, sizeof(text));
+    assert(std::strstr(text, "Kuehlmittel: -- |") != nullptr);
     s.link = Obd2Status::Link::Error;                  // never live values on error
     Obd2Status::format(s, 1000, text, sizeof(text));
     assert(std::strstr(text, "ELM327: Fehler, neuer Versuch") == text);

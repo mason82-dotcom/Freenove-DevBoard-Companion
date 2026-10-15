@@ -35,7 +35,7 @@ class Obd2Tests(unittest.TestCase):
     def test_wire_strings_only_in_policy(self):
         wires = re.findall(r'return "([^"]+)";', self.policy)
         self.assertEqual(sorted(wires), sorted([
-            "ATZ", "ATE0", "ATL0", "ATS0", "ATH0", "ATSP0",
+            "ATZ", "ATE0", "ATL0", "ATS0", "ATH0", "ATSP0", "ATRV", "ATDPN",
             "0100", "0120", "0140", "0104", "0105", "010C", "010D", "010F", "0111", "0142",
             "0106", "0107", "0108", "0109", "0110"]))
         for forbidden in ('"04"', '"03"', '"07"', '"0A"', "ATSH", "ATMA", "ATCRA", '"08'):
@@ -105,6 +105,30 @@ class Obd2Tests(unittest.TestCase):
             ran = subprocess.run([str(binary)], capture_output=True, text=True, timeout=30)
             self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)
 
+    def test_native_log_format(self):
+        compiler = shutil.which("g++") or shutil.which("clang++")
+        if not compiler:
+            self.skipTest("Native C++ compiler unavailable")
+        with tempfile.TemporaryDirectory(prefix="fnk0086-obd2log-") as tmp:
+            binary = Path(tmp) / "obd2_log_smoke"
+            cmd = [compiler, "-std=c++17", "-Wall", "-Wextra", "-Werror", "-pedantic",
+                   "-I" + str(ROOT / "include"), str(ROOT / "tests" / "obd2_log_smoke.cpp"),
+                   str(ROOT / "src" / "Obd2LogFormat.cpp"), "-o", str(binary)]
+            compiled = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            self.assertEqual(compiled.returncode, 0, compiled.stdout + compiled.stderr)
+            ran = subprocess.run([str(binary)], capture_output=True, text=True, timeout=30)
+            self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)
+
+    def test_log_written_by_worker_once_per_second_and_closed_on_leave(self):
+        log = code_only((ROOT / "src" / "Obd2Log.cpp").read_text(encoding="utf-8"))
+        self.assertIn("Obd2Log::write(s, Obd2Status::vehicleTitle());", self.client)
+        self.assertIn("if (link == Link::Idle) Obd2Log::close();", self.client)
+        self.assertIn("if (++pendingRows >= kFlushEveryRows && !commit())", log)
+        self.assertIn("MALLOC_CAP_SPIRAM", log)  # row buffer in PSRAM, not on the stack
+        self.assertIn("info.totalBytes - info.usedBytes < Obd2Log::kMinFreeBytes", log)
+        self.assertNotIn("Obd2Log::write", self.gui)  # UI only reads the status
+        self.assertIn("Obd2Log::footer(Obd2Log::status()", self.gui)
+
     def test_lab_simulator_answers_allowlist_and_flags_others(self):
         sim = load_sim()
         server = sim.make_server("127.0.0.1", 0, search_delay=0, reply_delay=0)
@@ -125,6 +149,8 @@ class Obd2Tests(unittest.TestCase):
                 self.assertIn("41 10 01 F4", ask("0110"))
                 self.assertRegex(ask("010C"), r"41 0C [0-9A-F]{2} [0-9A-F]{2}")
                 self.assertIn("41 42 34 BC", ask("0142"))
+                self.assertIn("13.9V", ask("ATRV"))
+                self.assertIn("A6", ask("ATDPN"))
                 self.assertEqual(server.violations, 0)
                 self.assertIn("?", ask("04"))
                 self.assertEqual(server.violations, 1)

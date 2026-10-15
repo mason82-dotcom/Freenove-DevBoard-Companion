@@ -176,3 +176,29 @@ Geflasht auf `/dev/ttyACM0` (SER `58FC003021`) nach Freigabe durch den Nutzer; U
 - Simulator: `--flight` spielt alle 60 s einen Flug (Boden, Start, manuell, Akku 30 % → RTH, Landung), `--weak-link` lässt die Funkqualität 5 → 1 → 5 laufen. Erste Fassung ließ den Akku am Boden weiter sinken (13 %, rot am Boden); jetzt bleibt er nach der Landung stehen.
 - Board (Fotos des Benutzers): gelb „Akku 29 % - Rueckkehr empfohlen“ im manuellen Flug, rot „Akku 13 % - Landung noetig“, rot „Drohne sendet nicht mehr (42 s)“ nach Abbruch des Simulators im Flug, Statistik danach erhalten. Log: `ignored=0`, Stack 3300 B frei. Tests: 68 bestanden.
 - Abnahme nach Kürzung der Flug-Zeile und „Modus: keine Daten“: vom Benutzer am Board bestätigt („passt“).
+
+
+## OBD2: Vorbereitung Kingbolen-WLAN-ELM327 und SD-Logging (14.10.2026)
+
+- Adapter: Kingbolen ELM327 WiFi, eigenes offenes WLAN `WiFi_OBDII` (vom Benutzer abgelesen), erwartet `192.168.0.10:35000`. Lokale `include/Obd2LocalConfig.h` (git-ignoriert) auf Fahrzeugprofil mit `MercedesC350W204M272` umgestellt. **Noch nicht am Fahrzeug getestet.**
+- Neue Adapterabfragen in der Allowlist (nichts erreicht den Fahrzeugbus): `ATRV` (Bordspannung an Pin 16, auch bei Zündung aus; ersetzt eine fehlende Steuergerätespannung in der Anzeige) und `ATDPN` (erkanntes Protokoll, Kopfzeile `ELM327 v1.5 | CAN 11/500`). Am Board gegen den Laborsimulator: `ELM327 v1.5, protocol CAN 11/500, 13.9 V`, 0 Timeouts, 0 Fehler, 0 Policy-Verletzungen.
+- SD-Logging: `/obd2/NNNN.csv`, eine Datei pro Besuch der OBD2-Seite ab dem ersten Live-Wert, 1 Zeile pro Sekunde (fester Takt), Kopfzeile mit Fahrzeug/Adapter/Protokoll, 14 Spalten, veraltete/nicht unterstützte Werte leer. Zeilen werden im PSRAM gesammelt und alle 10 Zeilen als ein Block geschrieben (weniger FAT-Zugriffe, höchstens 10 s Verlust bei Stromausfall). Stopp bei < 64 MB frei. Fußzeile `Nur Lesen | Stillstand | Log 0003 13 KB`. Abholbar per FTP.
+- Board (Laborprofil + Simulator): `0002.csv` per FTP geholt: 47 Zeilen, 14 Spalten in jeder Zeile, Abstand 1,0–1,3 s (danach auf festen 1-s-Takt umgestellt), Datei beim Verlassen sauber geschlossen (`47 rows, 3080 bytes`). OBD2-Worker-Stack mit SD-Schreiben 2688 B frei → auf 7 KB erhöht. Tests: 70 bestanden.
+- WLAN-Wechsel zu Hause ohne Adapter (Fahrzeugprofil `WiFi_OBDII`): OBD2-Seite → `profile home -> vehicle`, `wait-wifi`; Verlassen → `profile vehicle -> home`, `session closed`; Hermes danach in 3–7 s wieder `http=200`. Mehrfach wiederholt, kein Reset, Heap stabil (~69 KB).
+
+
+## NTP-Uhr, Hermes-/System-Aufteilung, 8 Kacheln (14.10.2026)
+
+- Uhr per NTP (`fritz.box`, `de.pool.ntp.org`, Europe/Berlin); am Board `Clock: synchronized` ca. 1 s nach dem WLAN, Hermes-TLS danach weiter `http=200` (Zertifikat besteht die Datumsprüfung). Uhr auf der Startseite, Datum/Zeit auf der System-Seite, Startzeit und Spalte `time` im OBD2-Log; unbekannte Zeit wird nie angezeigt.
+- Hermes-Seite nur noch Hermes (Version, API, Gateway, Dashboard mit Grund/HTTP, letzte erfolgreiche Prüfung als Uhrzeit, Chat-Modus, Bridge). Pi (Temperatur, RAM, Last, Uptime, RAM-Größe aus dem bestehenden `/v1/status`) und WLAN (Profil, RSSI, IP) auf der System-Seite. Der Statusserver (OpenNextion_Hermes_Dashboard) wurde nicht verändert.
+- Startseite 4 × 2: neue Platzhalter „Kids 4in1“ und „Frei“.
+- **Fehler und Fix:** Die erste System-Seite stürzte beim Öffnen ab (`Guru Meditation Error: LoadProhibited`, Backtrace `lv_label_set_text_fmt` ← `updateSystemDetails`). LVGLs printf hat keine Float-Unterstützung (`LV_SPRINTF_USE_FLOAT 0`); `PSRAM %.1f MB` verschob alle folgenden Argumente, ein `%s` las einen Nullzeiger, das Board startete neu (USB-Neuanmeldung). Fix: `snprintf` + `lv_label_set_text`. Neuer Test verbietet Float-Formate in `lv_label_set_text_fmt` (schlägt gegen den fehlerhaften Stand an). Tests: 74 bestanden.
+- Board nach dem Fix (Fotos des Benutzers): System- und Hermes-Seite vollständig, alle Zeilen im Rahmen, kein Absturz.
+
+
+## OBD2: erster Test im Fahrzeug (14.10.2026)
+
+- Mercedes C 350 W204 (M272), Kingbolen-WLAN-ELM327 (`WiFi_OBDII`), Stand, Log `/obd2/0003.csv` per FTP: Start 21:13:31, 59 Zeilen in 58,7 s, alle 15 Spalten. Protokoll **CAN 11/500** (automatische Suche). Bordspannung (ATRV) 11,2–11,3 V bei Zündung an / Motor aus, 13,0 V nach dem Start. Drehzahl 0 → 1035 → Leerlauf ~710 rpm, Tempo 0, Kühlmittel 62–63 °C, Ansaugluft 47–51 °C, Last bis 30,6 %, Drossel 12–15 %, MAF ~5 g/s. LTFT Bank 1 +12,5 %, Bank 2 +4,7 % (kalter Motor, STFT 0 = vermutlich noch keine Lambdaregelung; nur ein Messwert, keine Diagnose).
+- Befund 1: `adapter=?` – der Kingbolen antwortet auf ATZ nicht mit „ELM327 vX.Y“. Fix: erste Inhaltszeile als Name (Echo/OK/? ausgeschlossen, nur druckbare Zeichen) und rohe ATZ-Antwort im seriellen Log (`OBD2: ATZ reply "..." -> id "..."`).
+- Befund 2: langsame PIDs nur in 35–44 von 59 Zeilen gefüllt – das echte Steuergerät antwortet langsamer als der Simulator, jeder Round-Robin-Wert kam nur alle 4–6 s, die gemeinsame 5-s-Grenze ließ Lücken (auch „--“ im Display). Fix: Drehzahl/Tempo 3 s, übrige PIDs 15 s (`Obd2Status::staleAfterMs`). Tests: 74 bestanden.
+- Zweiter Fahrzeuglauf `/obd2/0004.csv` (21:25:35, neue Grenzen): Kühlmittel 51/51, Ansaugluft 50/51, Trims 44–46/51 Zeilen gefüllt (vorher 35–44/59); Lücken nur in den ersten Sekunden. Bordspannung 9,4 V beim Anlassen (normal), danach 12,8 V. `adapter=?` weiterhin: die ATZ-Antwort enthält keine Inhaltszeile. Neu: die bereinigte rohe ATZ-Antwort steht auch in der CSV-Kopfzeile (`atz=...`), da im Auto niemand seriell mitliest.

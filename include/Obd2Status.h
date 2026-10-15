@@ -5,8 +5,8 @@
 // Read-only ELM327 (Wi-Fi/TCP) live data, produced only on the OBD2 worker.
 // The worker talks to the adapter only while the OBD2 page is open.
 namespace Obd2Status {
-// Values older than this are displayed as "--".
-constexpr uint32_t kValueStaleMs = 5000;
+// ATRV is refreshed every few seconds, also between NoEcu retries.
+constexpr uint32_t kAdapterVoltageStaleMs = 15000;
 
 enum class Link : uint8_t {
     NotConfigured, Idle, WaitingForWifi, Connecting, Initializing, Searching, Live, Error,
@@ -24,10 +24,22 @@ enum Pid : uint8_t {
     Maf, ShortTrimB1, LongTrimB1, ShortTrimB2, LongTrimB2, kPidCount
 };
 
+// Values older than this are displayed as "--" / logged empty. RPM and speed
+// are read every cycle; the other PIDs round-robin, which on the real W204
+// ECU (2026-10-14) took 4-6 s per value, so 5 s for all left gaps.
+constexpr uint32_t kFastStaleMs = 3000;
+constexpr uint32_t kSlowStaleMs = 15000;
+constexpr uint32_t staleAfterMs(Pid pid) {
+    return pid == Rpm || pid == Speed ? kFastStaleMs : kSlowStaleMs;
+}
+
 struct Snapshot {
     Link link = Link::NotConfigured;
     bool vehicleProfile = false;  // true: dongle access point, false: lab/home WLAN
     char adapter[24] = {};  // ATZ identification, e.g. "ELM327 v1.5"
+    char atzRaw[48] = {};   // raw ATZ reply, CR/LF as '|', others '.', for clone diagnosis
+    char protocol[16] = {}; // ATDPN after the automatic search, e.g. "CAN 11/500"
+    Value adapterVoltage;   // ATRV: on-board voltage at OBD pin 16, no ECU needed
     Value values[kPidCount];
     bool supported[kPidCount] = {};
     bool supportKnown = false;
