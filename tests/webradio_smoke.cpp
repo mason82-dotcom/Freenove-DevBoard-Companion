@@ -26,6 +26,23 @@ int main() {
     utf8Copy(out, nullptr, sizeof(out));
     assert(out[0] == '\0');
 
+    // Titles for the ASCII-only font: UTF-8 and Latin-1 input.
+    toDisplayAscii(out, "M\xC3\xBCller \xE2\x80\x93 Gr\xC3\xB6\xC3\x9F" "e", sizeof(out));
+    assert(std::strcmp(out, "Mueller - Groesse") == 0);
+    toDisplayAscii(out, "Beyonc\xC3\xA9 \xE2\x80\x9CHalo\xE2\x80\x9D\xE2\x80\xA6", sizeof(out));
+    assert(std::strcmp(out, "Beyonce \"Halo\"...") == 0);
+    toDisplayAscii(out, "M\xFCller \xC4rger", sizeof(out));  // Latin-1 stream title
+    assert(std::strcmp(out, "Mueller Aerger") == 0);
+    toDisplayAscii(out, "\xC3\x84\xC3\x96\xC3\x9C \xC3\xA0\xC3\xB1\xC3\xA7", sizeof(out));
+    assert(std::strcmp(out, "AeOeUe anc") == 0);
+    toDisplayAscii(out, "A\tB\xE6\x97\xA5" "C", sizeof(out));  // control char, CJK
+    assert(std::strcmp(out, "A B?C") == 0);
+    char six[6];
+    toDisplayAscii(six, "abcd\xC3\xA4", sizeof(six));  // "ae" does not fit after "abcd"
+    assert(std::strcmp(six, "abcd") == 0);
+    toDisplayAscii(out, nullptr, sizeof(out));
+    assert(out[0] == '\0');
+
     formatStatus(Phase::Playing, 0, 128000, "MP3", out, sizeof(out));
     assert(std::strcmp(out, "Wiedergabe | 128 kbps MP3") == 0);
     formatStatus(Phase::Playing, 0, 96000, "", out, sizeof(out));

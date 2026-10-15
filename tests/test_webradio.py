@@ -54,6 +54,20 @@ class WebradioTests(unittest.TestCase):
         self.assertLess(begin.index("audio.settings.DMA_FRAME_NUM = kDmaFrameNum;"),
                         begin.index("audio.setPinout("))
 
+    def test_titles_ascii_and_state_persisted_debounced(self):
+        self.assertIn("toDisplayAscii(title, e.text, sizeof(title))", self.player)
+        settings = read("src/WebradioSettings.cpp")
+        self.assertIn('kNamespace[] = "webradio"', settings)
+        self.assertEqual(sorted(set(re.findall(r'prefs\.(?:get|put)\w+\("(\w+)"', settings))),
+                         ["playing", "station", "volume"])
+        self.assertIn("prefs.begin(kNamespace, true)", settings)  # load is read-only
+        # Saved only after kSaveDelayMs without changes and only when different.
+        # Signed age: an unsigned one saved on every button press (seen on hardware).
+        self.assertIn("static_cast<int32_t>(now - dirtyAtMs) >= static_cast<int32_t>(Settings::kSaveDelayMs)",
+                      self.player)
+        self.assertIn("v.station != saved.station || v.volume != saved.volume", self.player)
+        self.assertIn("kSaveDelayMs = 5000", read("include/WebradioSettings.h"))
+
     def test_no_server_storage_or_recording(self):
         for name in ("src/RadioEngine.cpp", "src/WebradioPlayer.cpp", "src/WebradioText.cpp"):
             text = read(name)

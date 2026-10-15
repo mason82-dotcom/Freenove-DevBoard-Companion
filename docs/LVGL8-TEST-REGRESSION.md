@@ -202,3 +202,10 @@ Geflasht auf `/dev/ttyACM0` (SER `58FC003021`) nach Freigabe durch den Nutzer; U
 - Befund 1: `adapter=?` – der Kingbolen antwortet auf ATZ nicht mit „ELM327 vX.Y“. Fix: erste Inhaltszeile als Name (Echo/OK/? ausgeschlossen, nur druckbare Zeichen) und rohe ATZ-Antwort im seriellen Log (`OBD2: ATZ reply "..." -> id "..."`).
 - Befund 2: langsame PIDs nur in 35–44 von 59 Zeilen gefüllt – das echte Steuergerät antwortet langsamer als der Simulator, jeder Round-Robin-Wert kam nur alle 4–6 s, die gemeinsame 5-s-Grenze ließ Lücken (auch „--“ im Display). Fix: Drehzahl/Tempo 3 s, übrige PIDs 15 s (`Obd2Status::staleAfterMs`). Tests: 74 bestanden.
 - Zweiter Fahrzeuglauf `/obd2/0004.csv` (21:25:35, neue Grenzen): Kühlmittel 51/51, Ansaugluft 50/51, Trims 44–46/51 Zeilen gefüllt (vorher 35–44/59); Lücken nur in den ersten Sekunden. Bordspannung 9,4 V beim Anlassen (normal), danach 12,8 V. `adapter=?` weiterhin: die ATZ-Antwort enthält keine Inhaltszeile. Neu: die bereinigte rohe ATZ-Antwort steht auch in der CSV-Kopfzeile (`atz=...`), da im Auto niemand seriell mitliest.
+
+
+## Webradio: Sender/Lautstärke merken, Umlaute in Titeln (15.10.2026)
+
+- `src/WebradioSettings.cpp` (einzige NVS-Stelle des Webradios, Namespace `webradio`, Schlüssel `station`/`volume`/`playing`): beim Start wiederhergestellt, bei laufender Wiedergabe vor dem Ausschalten wird fortgesetzt, sobald das Heim-WLAN steht. Gespeichert wird erst 5 s nach der letzten Änderung und nur bei Abweichung vom gespeicherten Stand.
+- `Webradio::toDisplayAscii()`: ICY-Titel für die ASCII-Schrift (ä→ae, ß→ss, Akzente entfernt, typografische Zeichen → ASCII, sonst `?`), UTF-8 und Latin-1 (ungültiges UTF-8 als Latin-1 gelesen).
+- Board: Sender, Lautstärke und Wiedergabe nach Ab-/Anstecken wiederhergestellt (Benutzer: „funktioniert“). **Fehler im ersten Stand:** jede Tastenbetätigung speicherte sofort (7 Schreibvorgänge in 2 s). `service(now)` erhält die Zeit vom Schleifenbeginn, `markDirty()` setzt `millis()` später; `now - dirtyAtMs` war negativ und vorzeichenlos riesig. Fix: vorzeichenbehafteter Vergleich, Test darauf. Tests: 75 bestanden.
