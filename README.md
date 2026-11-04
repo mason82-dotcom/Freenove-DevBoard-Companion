@@ -25,6 +25,7 @@ Companion-Dashboard für das Freenove ESP32-S3 FNK0086 mit **LVGL 8.3.11**, **TF
 - Touch: FT6336U, I²C-Adresse `0x38`, SDA GPIO2, SCL GPIO1
 - PulsOx: MAX30102 über gemeinsam abgesicherten I²C-Bus
 - Framework: pioarduino ESP32 Arduino; maßgebliche Versionen stehen in `platformio.ini`
+- Flash-Aufteilung (`partitions.csv`): NVS 20 KB, zwei OTA-App-Slots à 3,94 MB, Core-Dump 64 KB; kein SPIFFS (Daten liegen auf der SD-Karte). NVS und otadata liegen an den bisherigen Offsets, gespeicherte Einstellungen bleiben beim Flashen erhalten
 
 Die bestätigte Touch-Transformation ist in `include/TouchTransform.h` implementiert. Display-Pins und Rotation nicht ohne erneute Hardwareprüfung ändern.
 

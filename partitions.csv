@@ -1,6 +1,17 @@
-# Name, Type, SubType, Offset, Size, Flags
-nvs, data, nvs, 0x9000, 0x5000,
-otadata, data, ota, 0xE000, 0x2000,
-app0, app, ota_0, 0x10000, 0x300000,
-app1, app, ota_1, 0x310000, 0x300000,
-spiffs, data, spiffs, 0x610000, 0x1F0000,
+# Partitionstabelle Freenove FNK0086 / ESP32-S3-WROOM-1-N8R8 (8 MB Flash)
+#
+# nvs und otadata bleiben exakt an ihren bisherigen Offsets (0x9000/0xE000),
+# damit gespeicherte Einstellungen (Webradio: Sender, Lautstaerke, Wiedergabe)
+# beim ersten Flashen dieser Tabelle erhalten bleiben.
+#
+# Die fruehere spiffs-Partition wurde von keinem Modul benutzt (Daten liegen
+# auf der SD-Karte) und entfaellt. Der Platz geht an die beiden App-Slots
+# (je 3,94 MB statt 3 MB) und an eine coredump-Partition, damit Abstuerze
+# als Core Dump im Flash landen (auslesbar mit esptool/idf.py coredump-info).
+#
+# Name,     Type, SubType,  Offset,   Size,     Flags
+nvs,        data, nvs,      0x9000,   0x5000,
+otadata,    data, ota,      0xE000,   0x2000,
+app0,       app,  ota_0,    0x10000,  0x3F0000,
+app1,       app,  ota_1,    0x400000, 0x3F0000,
+coredump,   data, coredump, 0x7F0000, 0x10000,
